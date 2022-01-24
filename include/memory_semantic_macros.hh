@@ -3,11 +3,11 @@
 
 #define MOVEABLE(ClassName) \
     ClassName(ClassName&&) = default; \
-    ClassName&& operator=(ClassName&&) = default;
+    ClassName& operator=(ClassName&&) = default;
 
 #define NOT_MOVEABLE(ClassName) \
     ClassName(ClassName&&) = delete; \
-    ClassName&& operator=(ClassName&&) = delete;
+    ClassName& operator=(ClassName&&) = delete;
 
 #define COPYABLE(ClassName) \
     ClassName(const ClassName&) = default; \
