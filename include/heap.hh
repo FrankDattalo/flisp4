@@ -50,6 +50,10 @@ public:
         first_free = 0;
     }
 
+    bool Owns(Object* ptr) {
+        return &this->data[0] <= ptr && ptr <= &this->data[data_size-1];
+    }
+
 private:
     std::uint64_t AvailableSlots() {
         return this->data_size - this->first_free;
@@ -99,11 +103,11 @@ public:
 
     // Allocates an object with items elements and returns a pointer
     // to the object header
-    Object* AllocateObject(std::uint64_t items) {
-        std::uint64_t total_allocation_elements = items + 1;
+    Object* AllocateObject(std::uint32_t items) {
+        std::uint32_t total_allocation_elements = items + 1;
         Object* result = Allocate(total_allocation_elements);
         result[0].SetObjectHeader(total_allocation_elements);
-        for (std::uint64_t item_index = 0; item_index < items; item_index++) {
+        for (std::uint32_t item_index = 0; item_index < items; item_index++) {
             result[item_index + 1].SetNil();
         }
         return result;
@@ -113,7 +117,7 @@ private:
     // Primary interface for allocating on the heap
     // the data returned is not initialized and must
     // be initialized before use
-    Object* Allocate(std::uint64_t num_items) {
+    Object* Allocate(std::uint32_t num_items) {
 
         if (active->CanFit(num_items)) {
             return active->Allocate(num_items);
@@ -134,11 +138,11 @@ public:
     // methods to transfer their references to the new heap
     Object* Transfer(Object* slot) {
 
-        if (slot->IsGcForward()) {
+        if (slot->IsType(ObjectType::GcForward)) {
             return slot->GetGcForward();
         }
 
-        if (!slot->IsObjectHeader()) {
+        if (!slot->IsType(ObjectType::GcForward)) {
             throw std::runtime_error{std::string{
                 "Expected to transfer a heap object, not a simple value"
             }};
@@ -161,7 +165,7 @@ public:
     void TransferIfReference(Object* slot) {
         // if the slot is not a reference
         // then we dont care about it
-        if (!slot->IsReference()) {
+        if (!slot->IsType(ObjectType::Reference)) {
             return;
         }
 
