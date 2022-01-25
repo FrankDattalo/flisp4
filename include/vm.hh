@@ -192,12 +192,14 @@ private:
             throw std::runtime_error{std::string{"Arity mismatch"}};
         }
         pushFrame(fn);
+        // assign the arguments from the outer stack frame
         StackFrame* outer = this->frame->GetNullableOuter();
         std::size_t local_index = num_args - 1;
         for (std::uint64_t i = 0; i < num_args; i++)  {
             this->frame->SetLocal(local_index, outer->Pop());
             local_index--;
         }
+        outer->Pop(); // pop the function reference
     }
 
     void LoadTrue(const Bytecode& bc) {
