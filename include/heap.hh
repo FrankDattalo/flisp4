@@ -103,11 +103,11 @@ public:
 
     // Allocates an object with items elements and returns a pointer
     // to the object header
-    Object* AllocateObject(std::uint32_t items) {
-        std::uint32_t total_allocation_elements = items + 1;
+    Object* AllocateObject(std::uint64_t items) {
+        std::uint64_t total_allocation_elements = items + 1;
         Object* result = Allocate(total_allocation_elements);
         result[0].SetObjectHeader(total_allocation_elements);
-        for (std::uint32_t item_index = 0; item_index < items; item_index++) {
+        for (std::uint64_t item_index = 0; item_index < items; item_index++) {
             result[item_index + 1].SetNil();
         }
         return result;
@@ -117,7 +117,7 @@ private:
     // Primary interface for allocating on the heap
     // the data returned is not initialized and must
     // be initialized before use
-    Object* Allocate(std::uint32_t num_items) {
+    Object* Allocate(std::uint64_t num_items) {
 
         if (active->CanFit(num_items)) {
             return active->Allocate(num_items);
