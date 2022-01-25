@@ -150,10 +150,9 @@ private:
                 }
             }
 
-            //if (IS_DEBUG_ENABLED()) {
-            //    DEBUGLN("VM AFTER");
-            //    debugPrint();
-            //}
+            if (IS_DEBUG_ENABLED()) {
+                waitForInput();
+            }
         }
     }
 
@@ -335,6 +334,12 @@ private:
         }
         std::cout << "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n";
         std::cout << std::endl;
+    }
+
+    void waitForInput() {
+        DEBUGLN("Press [Enter] to continue...");
+        std::string line;
+        std::getline(std::cin, line);
     }
 };
 

@@ -67,12 +67,12 @@ void decompile(const std::vector<std::string>& args) {
 }
 
 void execute(const std::vector<std::string>& args) {
-    if (args.size() != 4) {
-        throw std::runtime_error{std::string{"Bad format, expected: <program_name> execute <file_path> <heap_size>"}};
+    if (args.size() != 3) {
+        throw std::runtime_error{std::string{"Bad format, expected: <program_name> execute <file_path>"}};
     }
     const std::string & file_name = args.at(2);
     File result = BytecodeReader::Read(file_name);
-    std::uint64_t heap_size = std::stoull(args.at(3));
+    std::uint64_t heap_size = 1000; // TODO: change this in the future
     VirtualMachine vm{std::move(result), heap_size};
     vm.Run();
 }
