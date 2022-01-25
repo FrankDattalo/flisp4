@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <limits>
+#include <sstream>
 
 #include "memory_semantic_macros.hh"
 #include "bytecode.hh"
@@ -141,6 +142,58 @@ public:
     double GetReal() {
         checkType(ObjectType::Real);
         return this->real;
+    }
+
+    std::string ToDebugString() {
+        switch (this->type) {
+            case ObjectType::Nil: {
+                return "nil";
+            }
+            case ObjectType::Reference: {
+                std::stringstream stream;
+                stream << "ref@" << this->GetReference();
+                return stream.str();
+            }
+            case ObjectType::Integer: {
+                return std::to_string(this->GetInteger());
+            }
+            case ObjectType::Boolean: {
+                return this->GetBoolean() ? "true" : "false";
+            }
+            case ObjectType::Symbol: {
+                std::stringstream stream;
+                stream << "symbol@" << this->GetSymbol();
+                return stream.str();
+            }
+            case ObjectType::Real: {
+                return std::to_string(this->GetReal());
+            }
+            case ObjectType::Character: {
+                std::stringstream stream;
+                stream << this->GetCharacter();
+                return stream.str();
+            }
+            case ObjectType::ObjectHeader: {
+                std::stringstream stream;
+                stream << "header@" << this->GetAllocationSize();
+                return stream.str();
+            }
+            case ObjectType::GcForward: {
+                std::stringstream stream;
+                stream << "forward@" << this->GetGcForward();
+                return stream.str();
+            }
+            case ObjectType::FunctionReference: {
+                std::stringstream stream;
+                stream << "function@" << this->GetFunctionReference();
+                return stream.str();
+            }
+            default: {
+                std::string str{"Unknown object type in DebugToString "};
+                str.append(std::to_string(static_cast<std::uint64_t>(this->type)));
+                throw std::runtime_error{str};
+            }
+        }
     }
 
 private:

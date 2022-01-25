@@ -51,6 +51,7 @@ private:
     void loop() {
         while (true) {
             if (IS_DEBUG_ENABLED()) {
+                DEBUGLN("VM BEFORE");
                 debugPrint();
             }
 
@@ -142,6 +143,11 @@ private:
                     error_message.append(std::to_string(static_cast<std::uint64_t>(bc.GetType())));
                     throw std::runtime_error{error_message};
                 }
+            }
+
+            if (IS_DEBUG_ENABLED()) {
+                DEBUGLN("VM AFTER");
+                debugPrint();
             }
         }
     }
@@ -242,6 +248,57 @@ private:
             throw std::runtime_error{std::string{"Expected entrypoint function to have arity of 0"}};
         }
         return result;
+    }
+
+    void debugPrintFrame(StackFrame* frame) {
+        std::cout << "FRAME -------------------------------------------\n";
+        std::cout << "| ARITY    " << frame->GetFunction()->GetArity() << "\n";
+        std::cout << "| LOCALS   [";
+        for (std::size_t i = 0; i < frame->LocalCount(); i++) {
+            if (i != 0) {
+                std::cout << ", ";
+            }
+            Object local = frame->GetLocal(i);
+            std::cout << local.ToDebugString();
+        }
+        std::cout << "]\n";
+        std::cout << "| TEMPS    [";
+        for (std::size_t i = 0; i < frame->TempCount(); i++) {
+            if (i != 0) {
+                std::cout << ", ";
+            }
+            Object temp = frame->GetTemp(i);
+            std::cout << temp.ToDebugString();
+        }
+        std::cout << "]\n";
+        std::cout << "| PC       " << frame->GetProgramCounter() << "\n";
+        std::cout << "| BYTECODE \n";
+        for (std::size_t i = 0; i < frame->GetFunction()->GetBytecode().size(); i++) {
+            std::cout << "| [" << i << "] ";
+            const Bytecode& bc = frame->GetFunction()->GetBytecode().at(i);
+            std::cout << Bytecode::TypeToString(bc.GetType());
+            if (bc.HasArg()) {
+                std::cout << "(" << bc.GetArg() << ")";
+            }
+            if (i == frame->GetProgramCounter()) {
+                std::cout << " <~~~~~~~~~~~~~~~~~~";
+            }
+            std::cout << "\n";
+        }
+        std::cout << "-------------------------------------------------\n";
+    }
+
+    void debugPrint() {
+        bool first = true;
+        StackFrame* frame = this->frame.get();
+        while (frame != nullptr) {
+            if (!first) {
+                std::cout << "^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n";
+            }
+            debugPrintFrame(frame);
+            frame = frame->GetNullableOuter();
+            first = false;
+        }
     }
 };
 

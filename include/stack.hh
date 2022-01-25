@@ -71,6 +71,14 @@ public:
         this->temps.push_back(obj);
     }
 
+    std::uint64_t TempCount() {
+        return temps.size();
+    }
+
+    Object GetTemp(std::uint64_t index) {
+        return this->temps.at(index);
+    }
+
     Object Pop() {
         Object result = this->temps.back();
         this->temps.pop_back();
