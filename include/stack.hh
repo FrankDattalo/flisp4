@@ -71,6 +71,11 @@ public:
         this->temps.push_back(obj);
     }
 
+    Object OffsetFromTop(std::size_t offset) {
+        std::size_t index = (this->temps.size() - 1) - offset;
+        return this->temps.at(index);
+    }
+
     std::uint64_t TempCount() {
         return temps.size();
     }

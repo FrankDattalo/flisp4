@@ -9,7 +9,9 @@
 #include <cstring>
 #include <system_error>
 
+#include "assembler.hh"
 #include "bytecode_reader.hh"
+#include "bytecode_writer.hh"
 #include "bytecode.hh"
 #include "debug.hh"
 #include "heap.hh"
@@ -39,11 +41,12 @@ void decompile(const std::vector<std::string>& args) {
     for (std::size_t i = 0; i < result.GetFunctions().size(); i++) {
         std::cout << "- Fn[" << i << "]\n";
         std::cout << "  - Arity: " << result.GetFunctions().at(i).GetArity() << std::endl;
+        std::cout << "  - Locals: " << result.GetFunctions().at(i).GetLocals() << std::endl;
         std::cout << "  - Bytecode:\n";
         for (std::size_t j = 0; j < result.GetFunctions().at(i).GetBytecode().size(); j++) {
             const Bytecode & bc = result.GetFunctions().at(i).GetBytecode().at(j);
             std::cout << "    - [" << j << "] " << Bytecode::TypeToString(bc.GetType());
-            if (bc.HasArg()) {
+            if (Bytecode::HasArg(bc.GetType())) {
                 std::cout << "(" << bc.GetArg() << ")";
             }
             std::cout << std::endl;
@@ -74,6 +77,15 @@ void execute(const std::vector<std::string>& args) {
     vm.Run();
 }
 
+void assemble(const std::vector<std::string>& args) {
+    if (args.size() != 4) {
+        throw std::runtime_error{std::string{"Bad format, expected: <program_name> assemble <input_file_path> <output_file_path>"}};
+    }
+    const std::string & input_file = args.at(2);
+    const std::string & output_file = args.at(3);
+    Assembler::Assemble(input_file, output_file);
+}
+
 CommandFunction selectCommandEntry(const std::vector<std::string>& args) {
     if (args.size() < 2) {
         throw std::runtime_error{std::string{"No arguments given, at least one is expected"}};
@@ -84,6 +96,9 @@ CommandFunction selectCommandEntry(const std::vector<std::string>& args) {
     }
     if (subcommand == "execute") {
         return execute;
+    }
+    if (subcommand == "assemble") {
+        return assemble;
     }
     std::string message{"Unknown command: "};
     message.append(subcommand);

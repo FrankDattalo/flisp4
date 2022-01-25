@@ -4,6 +4,7 @@
 #include <stdexcept>
 #include <fstream>
 
+#include "memory_semantic_macros.hh"
 #include "bytecode.hh"
 #include "debug.hh"
 

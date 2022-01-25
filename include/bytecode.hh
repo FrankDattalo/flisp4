@@ -23,6 +23,7 @@ enum class BytecodeType {
     LoadField,
     StoreField,
     Return,
+    MakeFunction,
 };
 
 static_assert(sizeof(BytecodeType) <= sizeof(std::uint32_t));
@@ -38,7 +39,7 @@ public:
 
     ~Bytecode() = default;
 
-    NOT_COPYABLE(Bytecode);
+    COPYABLE(Bytecode);
 
     MOVEABLE(Bytecode);
 
@@ -47,15 +48,16 @@ public:
     }
 
     std::uint64_t GetArg() const {
-        bool hasArg = HasArg();
+        bool hasArg = HasArg(this->type);
         if (!hasArg) {
             throw std::runtime_error{std::string{"GetArg called on argless bytecode"}};
         }
         return arg;
     }
 
-    bool HasArg() const {
+    static bool HasArg(BytecodeType type) {
         switch (type) {
+            case BytecodeType::MakeFunction:
             case BytecodeType::LoadLocal:
             case BytecodeType::StoreLocal:
             case BytecodeType::JumpIfFalse:
@@ -100,6 +102,7 @@ public:
             case BytecodeType::LoadNil: return "LoadNil";
             case BytecodeType::Return: return "Return";
             case BytecodeType::Halt: return "Halt";
+            case BytecodeType::MakeFunction: return "MakeFunction";
             default: {
                 std::string msg{"Unhandled bytecode in TypeToString: "};
                 msg.append(std::to_string(static_cast<uint64_t>(type)));

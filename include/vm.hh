@@ -66,72 +66,77 @@ private:
             switch (bc.GetType()) {
                 case BytecodeType::LoadLocal: {
                     DEBUGLN("LoadLocal");
-                    LoadLocal(pc, bc);
+                    LoadLocal(bc);
                     break;
                 }
                 case BytecodeType::StoreLocal: {
                     DEBUGLN("StoreLocal");
-                    StoreLocal(pc, bc);
+                    StoreLocal(bc);
                     break;
                 }
                 case BytecodeType::JumpIfFalse: {
                     DEBUGLN("JumpIfFalse");
-                    JumpIfFalse(pc, bc);
+                    JumpIfFalse(bc);
                     break;
                 }
                 case BytecodeType::Jump: {
                     DEBUGLN("Jump");
-                    Jump(pc, bc);
+                    Jump(bc);
                     break;
                 }
                 case BytecodeType::Invoke: {
                     DEBUGLN("Invoke");
-                    Invoke(pc, bc);
+                    Invoke(bc);
                     break;
                 }
                 case BytecodeType::LoadTrue: {
                     DEBUGLN("LoadTrue");
-                    LoadTrue(pc, bc);
+                    LoadTrue(bc);
                     break;
                 }
                 case BytecodeType::LoadFalse: {
                     DEBUGLN("LoadFalse");
-                    LoadFalse(pc, bc);
+                    LoadFalse(bc);
                     break;
                 }
                 case BytecodeType::LoadNil: {
                     DEBUGLN("LoadNil");
-                    LoadNil(pc, bc);
+                    LoadNil(bc);
                     break;
                 }
                 case BytecodeType::LoadInteger: {
                     DEBUGLN("LoadInteger");
-                    LoadInteger(pc, bc);
+                    LoadInteger(bc);
                     break;
                 }
                 case BytecodeType::LoadSymbol: {
                     DEBUGLN("LoadSymbol");
-                    LoadSymbol(pc, bc);
+                    LoadSymbol(bc);
                     break;
                 }
                 case BytecodeType::LoadCharacter: {
                     DEBUGLN("LoadCharacter");
-                    LoadCharacter(pc, bc);
+                    LoadCharacter(bc);
                     break;
                 }
                 case BytecodeType::LoadField: {
                     DEBUGLN("LoadField");
-                    LoadField(pc, bc);
+                    LoadField(bc);
                     break;
                 }
                 case BytecodeType::StoreField: {
                     DEBUGLN("StoreField");
-                    StoreField(pc, bc);
+                    StoreField(bc);
                     break;
                 }
                 case BytecodeType::Return: {
                     DEBUGLN("Return");
-                    Return(pc, bc);
+                    Return(bc);
+                    break;
+                }
+                case BytecodeType::MakeFunction: {
+                    DEBUGLN("MakeFunction");
+                    MakeFunction(bc);
                     break;
                 }
                 case BytecodeType::Halt: {
@@ -145,24 +150,24 @@ private:
                 }
             }
 
-            if (IS_DEBUG_ENABLED()) {
-                DEBUGLN("VM AFTER");
-                debugPrint();
-            }
+            //if (IS_DEBUG_ENABLED()) {
+            //    DEBUGLN("VM AFTER");
+            //    debugPrint();
+            //}
         }
     }
 
-    void LoadLocal(std::uint64_t pc, const Bytecode& bc) {
+    void LoadLocal(const Bytecode& bc) {
         this->frame->Push(this->frame->GetLocal(bc.GetArg()));
         this->frame->AdvanceProgramCounter();
     }
 
-    void StoreLocal(std::uint64_t pc, const Bytecode& bc) {
+    void StoreLocal(const Bytecode& bc) {
         this->frame->SetLocal(bc.GetArg(), this->frame->Pop());
         this->frame->AdvanceProgramCounter();
     }
 
-    void JumpIfFalse(std::uint64_t pc, const Bytecode& bc) {
+    void JumpIfFalse(const Bytecode& bc) {
         Object res = this->frame->Pop();
         if (res.IsType(ObjectType::Boolean) && !res.GetBoolean()) {
             this->frame->SetProgramCounter(bc.GetArg());
@@ -171,41 +176,58 @@ private:
         }
     }
 
-    void Jump(std::uint64_t pc, const Bytecode& bc) {
+    void Jump(const Bytecode& bc) {
         this->frame->SetProgramCounter(bc.GetArg());
     }
 
-    void Invoke(std::uint64_t pc, const Bytecode& bc) {
-        // TODO
+    void Invoke(const Bytecode& bc) {
+        std::uint64_t num_args = bc.GetArg();
+        Object reciever = this->frame->OffsetFromTop(num_args);
+        if (!reciever.IsType(ObjectType::FunctionReference)) {
+            // TODO, don't crash the vm
+            throw std::runtime_error{std::string{"Expected reciever to be a function"}};
+        }
+        const Function* fn = reciever.GetFunctionReference();
+        if (fn->GetArity() != num_args) {
+            // TODO, don't crash the vm
+            throw std::runtime_error{std::string{"Arity mismatch"}};
+        }
+        pushFrame(fn);
+        StackFrame* outer = this->frame->GetNullableOuter();
+        std::size_t local_index = num_args - 1;
+        for (std::uint64_t i = 0; i < num_args; i++)  {
+            this->frame->SetLocal(local_index, outer->Pop());
+            local_index--;
+        }
     }
 
-    void LoadTrue(std::uint64_t pc, const Bytecode& bc) {
+    void LoadTrue(const Bytecode& bc) {
         Object temp;
         temp.SetBoolean(true);
         this->frame->Push(temp);
         this->frame->AdvanceProgramCounter();
     }
 
-    void LoadFalse(std::uint64_t pc, const Bytecode& bc) {
+    void LoadFalse(const Bytecode& bc) {
         Object temp;
         temp.SetBoolean(false);
         this->frame->Push(temp);
         this->frame->AdvanceProgramCounter();
     }
 
-    void LoadNil(std::uint64_t pc, const Bytecode& bc) {
+    void LoadNil(const Bytecode& bc) {
         this->frame->Push(Object{});
         this->frame->AdvanceProgramCounter();
     }
 
-    void LoadInteger(std::uint64_t pc, const Bytecode& bc) {
+    void LoadInteger(const Bytecode& bc) {
         Object temp;
         temp.SetInteger(this->file.GetIntegerConstants().at(bc.GetArg()));
         this->frame->Push(temp);
         this->frame->AdvanceProgramCounter();
     }
 
-    void LoadSymbol(std::uint64_t pc, const Bytecode& bc) {
+    void LoadSymbol(const Bytecode& bc) {
         // TODO
         Object temp;
         const std::string& str = this->file.GetSymbolConstants().at(bc.GetArg());
@@ -215,23 +237,34 @@ private:
         this->frame->AdvanceProgramCounter();
     }
 
-    void LoadCharacter(std::uint64_t pc, const Bytecode& bc) {
+    void LoadCharacter(const Bytecode& bc) {
         Object temp;
         temp.SetCharacter(this->file.GetCharacterConstants().at(bc.GetArg()));
         this->frame->Push(temp);
         this->frame->AdvanceProgramCounter();
     }
 
-    void LoadField(std::uint64_t pc, const Bytecode& bc) {
+    void LoadField(const Bytecode& bc) {
         // TODO
     }
 
-    void StoreField(std::uint64_t pc, const Bytecode& bc) {
+    void StoreField(const Bytecode& bc) {
         // TODO
     }
 
-    void Return(std::uint64_t pc, const Bytecode& bc) {
-        // TODO
+    void Return(const Bytecode& bc) {
+        Object ret = this->frame->Pop();
+        this->frame = this->frame->GetOuter();
+        this->frame->Push(ret);
+        this->frame->AdvanceProgramCounter();
+    }
+
+    void MakeFunction(const Bytecode& bc) {
+        const Function* fn = &this->file.GetFunctions().at(bc.GetArg());
+        Object tmp;
+        tmp.SetFunctionReference(fn);
+        this->frame->Push(tmp);
+        this->frame->AdvanceProgramCounter();
     }
 
     void pushFrame(const Function* fn) {
@@ -277,7 +310,7 @@ private:
             std::cout << "| [" << i << "] ";
             const Bytecode& bc = frame->GetFunction()->GetBytecode().at(i);
             std::cout << Bytecode::TypeToString(bc.GetType());
-            if (bc.HasArg()) {
+            if (Bytecode::HasArg(bc.GetType())) {
                 std::cout << "(" << bc.GetArg() << ")";
             }
             if (i == frame->GetProgramCounter()) {
@@ -289,6 +322,7 @@ private:
     }
 
     void debugPrint() {
+        std::cout << "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n";
         bool first = true;
         StackFrame* frame = this->frame.get();
         while (frame != nullptr) {
@@ -299,6 +333,8 @@ private:
             frame = frame->GetNullableOuter();
             first = false;
         }
+        std::cout << "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n";
+        std::cout << std::endl;
     }
 };
 
