@@ -17,8 +17,8 @@ import fvm.antlr.LanguageParser.ListContext;
 import fvm.antlr.LanguageParser.StringContext;
 import fvm.antlr.LanguageParser.SymbolContext;
 
-public class Reader {
-    public Value read(java.lang.String input) {
+public class Compiler {
+    public void compile(String inputFilePath, String outputFilePath) {
         CharStream stream = CharStreams.fromString(input);
         LanguageLexer lexer = new LanguageLexer(stream);
         lexer.removeErrorListeners();
@@ -31,7 +31,7 @@ public class Reader {
         ParseTreeWalker walker = new ParseTreeWalker();
         Listener listener = new Listener();
         walker.walk(listener, tree);
-        return listener.context.result.head();
+        listener.context.result.head();
     }
 
     private static final class ThrowingErrorListener extends BaseErrorListener {

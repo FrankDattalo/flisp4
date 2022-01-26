@@ -1,7 +1,11 @@
 grammar Language;
 
 program
-    : expression+
+    : functionDefinition+
+    ;
+
+functionDefinition
+    : '(' 'define' '(' symbol (symbol)* ')' expression+ ')'
     ;
 
 expression
@@ -9,7 +13,6 @@ expression
     | setExpression
     | lambdaExpression
     | ifExpression
-    | quoteExpression
     | invokeExpression
     | literalExpression
     ;
@@ -32,10 +35,6 @@ arguments
 
 ifExpression
     : '(' 'if' expression expression expression ')'
-    ;
-
-quoteExpression
-    : '(' 'quote' expression ')'
     ;
 
 invokeExpression
