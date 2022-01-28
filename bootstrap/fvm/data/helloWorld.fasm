@@ -15,8 +15,7 @@
     Pop
     LoadLocal 0
     Return
-    LoadNil
-    Return
+    Halt
 @endfunction
 ; end - main
 
