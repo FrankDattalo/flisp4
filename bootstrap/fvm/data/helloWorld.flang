@@ -1,12 +1,6 @@
 
-fn main(args) {
-    var p = tuple("Frank", 25);
-
-    if equals(p, 0) {
-        p = 1;
-    } else {
-        p = 2;
-    }
-
+fn main() {
+    var p = 1;
+    system:println(p);
     return p;
 }

@@ -3,11 +3,15 @@ package fvm;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 
 import org.antlr.v4.runtime.BaseErrorListener;
 import org.antlr.v4.runtime.CharStream;
@@ -22,16 +26,24 @@ import org.apache.commons.io.IOUtils;
 import fvm.antlr.LanguageBaseListener;
 import fvm.antlr.LanguageLexer;
 import fvm.antlr.LanguageParser;
+import fvm.antlr.LanguageParser.AssignStatementContext;
+import fvm.antlr.LanguageParser.BooleanLiteralContext;
+import fvm.antlr.LanguageParser.DefineStatementContext;
+import fvm.antlr.LanguageParser.ExpressionStatementContext;
 import fvm.antlr.LanguageParser.FunctionDefinitionContext;
-import fvm.antlr.LanguageParser.IntegerContext;
-import fvm.antlr.LanguageParser.StringContext;
-import fvm.antlr.LanguageParser.SymbolContext;
+import fvm.antlr.LanguageParser.IfStatementContext;
+import fvm.antlr.LanguageParser.IntegerLiteralContext;
+import fvm.antlr.LanguageParser.InvokeExpressionContext;
+import fvm.antlr.LanguageParser.ProgramContext;
+import fvm.antlr.LanguageParser.ReturnStatementContext;
+import fvm.antlr.LanguageParser.StringLiteralContext;
+import fvm.antlr.LanguageParser.VariableExpressionContext;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.Getter;
-import lombok.NoArgsConstructor;
 import lombok.NonNull;
+import lombok.Setter;
 import lombok.SneakyThrows;
 import lombok.Value;
 
@@ -66,19 +78,41 @@ public class Compiler {
         return listener.getFile();
     }
 
+    @SneakyThrows
+    private void write(OutputStream out, String fmt, Object... args) {
+        IOUtils.write(String.format(fmt, args), out, StandardCharsets.UTF_8);
+    }
+
+    private void writeLn(OutputStream out, String fmt, Object... args) {
+        write(out, fmt + "\n", args);
+    }
+
+    @SneakyThrows
     private void writeToFile(CompiledFile compiledCode, String outputFilePath) {
-        try (FileOutputStream out = new FileOutputStream(new File(outputFilePath));
-             ) {
+        try (FileOutputStream out = new FileOutputStream(new File(outputFilePath))) {
             // write out each function
             for (Function fn : compiledCode.getFunctions()) {
+                writeLn(out, "; %s", fn.getName());
+                writeLn(out, "@function");
+                writeLn(out, "@arity %s", fn.getArity());
+                writeLn(out, "@locals %s", fn.getLocals());
+                for (Bytecode bc : fn.getBytecode()) {
+                    if (bc.getType().isHasArg()) {
+                        writeLn(out, "    %s %s", bc.getType().toString(), bc.getArg());
+                    } else {
+                        writeLn(out, "    " + bc.getType().toString());
+                    }
+                }
+                writeLn(out, "@endfunction");
+                writeLn(out, "; %s", fn.getName());
             }
             // write out integer constant
             for (Long integer : compiledCode.getIntegerConstants()) {
-
+                writeLn(out, "@integer %s", integer.toString());
             }
             // write out each string constant
             for (String str : compiledCode.getStringConstants()) {
-                
+                writeLn(out, "@string %s", str);
             }
         }
     }
@@ -101,10 +135,20 @@ public class Compiler {
     private static enum BytecodeType {
 
         Halt("Halt", false),
+        JumpIfFalse("JumpIfFalse", true),
+        Jump("Jump", true),
+        LoadNil("LoadNil", false),
+        Return("Return", false),
+        LoadLocal("LoadLocal", true),
+        StoreLocal("StoreLocal", true),
         LoadInteger("LoadInteger", true),
         LoadString("LoadString", true),
         LoadTrue("LoadTrue", false),
-        LoadFalse("LoadFalse", false);
+        LoadFalse("LoadFalse", false),
+        InvokeNative("InvokeNative", true),
+        InvokeFunction("InvokeFunction", true),
+        LoadUnsigned("LoadUnsigned", true),
+        Pop("Pop", false);
 
         BytecodeType(String asString, boolean hasArg) {
             this.asString = asString;
@@ -121,10 +165,10 @@ public class Compiler {
         }
     }
 
-    @Value
+    @Data
     private static class Bytecode {
         @NonNull @Getter private BytecodeType type;
-        @Getter private long arg;
+        @Getter @Setter private long arg;
 
         public Bytecode(BytecodeType type) {
             this.type = type;
@@ -148,70 +192,332 @@ public class Compiler {
 
     @Data
     @Builder
+    @AllArgsConstructor
     private static class Function {
-        private long arity;
-        private long locals;
+        @NonNull private Long arity;
+        @NonNull private Long locals;
+        @NonNull private String name;
         @NonNull private List<Bytecode> bytecode;
+        @Getter @Setter private long index;
     }
 
-    @Data
+    @Value
     @Builder
-    @NoArgsConstructor
     @AllArgsConstructor
     private static class CompiledFile {
-        @NonNull @Builder.Default private List<Function> functions = new ArrayList();
-        @NonNull @Builder.Default private List<Long> integerConstants = new ArrayList();
-        @NonNull @Builder.Default private List<String> stringConstants = new ArrayList();
+        @NonNull private List<Function> functions;
+        @NonNull private List<Long> integerConstants;
+        @NonNull private List<String> stringConstants;
     }
 
     private static final class ConstantPool<T> {
         private Map<T, Long> pool = new HashMap<>();
+        @Getter private List<T> list = new ArrayList<>();
+
         public Long value(T t) {
             if (pool.containsKey(t)) {
                 return pool.get(t);
             } else {
-                Long result = pool.size();
+                Long result = Long.valueOf(pool.size());
                 pool.put(t, result);
+                list.add(t);
                 return result;
             }
         }
     }
 
+    @Value
+    @Builder
+    private static final class FunctionCall {
+        @NonNull private final String calleeName;
+        @NonNull private final String callerName;
+        @NonNull private final Long callerBytecodeNumber;
+    }
+
     private static final class Listener extends LanguageBaseListener {
 
+        private static final Set<String> NATIVES = new HashSet<>();
+        static {
+            NATIVES.add("print");
+            NATIVES.add("println");
+        }
+
         @Getter
-        private final CompiledFile file = new CompiledFile();
+        private CompiledFile file;
 
-        @NonNull private final ConstantPool<Long> integers = new ConstantPool<>();
-        @NonNull private final ConstantPool<Character> characters = new ConstantPool<>();
-        @NonNull private final ConstantPool<String> symbols = new ConstantPool<>();
-        @NonNull private final ConstantPool<String> strings = new ConstantPool<>();
+        private final ConstantPool<Long> integers = new ConstantPool<>();
+        private final ConstantPool<String> strings = new ConstantPool<>();
 
-        private Function fn;
+        private long arity;
+        private String functionName;
+        private Map<String, Long> locals;
+        private List<Bytecode> bytecode;
+
+        private final Map<String, Function> functions = new HashMap<>();
+
+        private final List<FunctionCall> functionsCallsNeedingResolution = new ArrayList<>();
+
+        @Override
+        public void exitProgram(ProgramContext ctx) {
+            // validate main fn exists
+            if (!this.functions.containsKey("main")) {
+                throw new IllegalStateException("No main function defined");
+            }
+            Function main = this.functions.get("main");
+            if (main.getArity() != 0) {
+                throw new IllegalStateException("Arity of main function should be 0");
+            }
+            // serialize functions
+            List<Function> serializedFunctions = new ArrayList<>();
+            serializedFunctions.add(main);
+            for (Function fn : this.functions.values()) {
+                if (fn.getName().equals("main")) {
+                    continue;
+                }
+                serializedFunctions.add(fn);
+            }
+            // validate all functions refer to known things
+            for (FunctionCall call : functionsCallsNeedingResolution) {
+                String toResolve = call.getCalleeName();
+                if (!this.functions.containsKey(toResolve)) {
+                    throw new IllegalStateException(
+                        String.format("Call to unbound function %s in %s", toResolve, call.getCallerName())
+                    );
+                }
+                long fnIndex = this.functions.get(toResolve).getIndex();
+                this.functions.get(call.getCallerName()).getBytecode().get(call.getCallerBytecodeNumber().intValue()).setArg(fnIndex);
+            }
+            // copy over integer and strings
+            this.file = CompiledFile.builder()
+                .functions(serializedFunctions)
+                .integerConstants(this.integers.getList())
+                .stringConstants(this.strings.getList())
+                .build();
+        }
 
         @Override
         public void enterFunctionDefinition(FunctionDefinitionContext ctx) {
-            
+            functionName = ctx.identifier().getText();
+            arity = ctx.functionParameters().identifier().size();
+            locals = new HashMap<>();
+            bytecode = new ArrayList<>();
+            ctx.functionParameters().identifier().forEach(ident -> {
+                defineLocal(ident.getText());
+            });
+            if (functions.containsKey(functionName)) {
+                throw new IllegalStateException(
+                    String.format("Redefinition of function %s", functionName)
+                );
+            }
         }
 
         @Override
-        public void enterInteger(IntegerContext ctx) {
-            String text = ctx.INTEGER().getSymbol().getText();
-            emit(BytecodeType.LoadInteger, integers.pool(Long.valueOf(text)));
+        public void exitFunctionDefinition(FunctionDefinitionContext ctx) {
+            emit(BytecodeType.LoadNil);
+            emit(BytecodeType.Return);
+            functions.put(
+                functionName,
+                Function.builder()
+                    .name(functionName)
+                    .arity(arity)
+                    .locals(Long.valueOf(locals.size()))
+                    .bytecode(bytecode)
+                    .build()
+            );
         }
 
         @Override
-        public void enterString(StringContext ctx) {
-            String text = ctx.STRING().getSymbol().getText();
-            emit(BytecodeType.LoadString, strings.pool(text));
+        public void enterDefineStatement(DefineStatementContext ctx) {
+            String local = ctx.identifier().getText();
+            if (isDefined(local)) {
+                throw new IllegalStateException(
+                    String.format("Redefinition of local %s in function %s", local, functionName)
+                );
+            }
         }
 
-        private void emit(BytecodeType bc, long arg) {
-
+        @Override
+        public void exitDefineStatement(DefineStatementContext ctx) {
+            String local = ctx.identifier().getText();
+            long localId = defineLocal(local);
+            emit(BytecodeType.StoreLocal, localId);
         }
 
-        private void emit(BytecodeType bc) {
+        @Override
+        public void enterAssignStatement(AssignStatementContext ctx) {
+            String local = ctx.identifier().getText();
+            if (!isDefined(local)) {
+                throw new IllegalStateException(
+                    String.format("Undefined variable %s in function %s", local, functionName)
+                );
+            }
+        }
 
+        @Override
+        public void enterIfStatement(IfStatementContext ctx) {
+            enterExpression(ctx.expression());
+
+            long jumpIfFalsePosition = emit(BytecodeType.JumpIfFalse, 0);
+
+            int altNumber = ctx.getAltNumber();
+            if (altNumber != 0 && altNumber != 1) {
+                throw new RuntimeException("Unhandled alt number in if " + altNumber);
+            }
+            boolean oneArmIf = altNumber == 0;
+            if (oneArmIf) {
+                enterStatements(ctx.statements(0));
+                updateBytecodeArg(jumpIfFalsePosition, nextBytecodePosition());
+            } else /* two armed if */ {
+                enterStatements(ctx.statements(1)); // true branch
+                long jumpPosition = emit(BytecodeType.Jump, 0); // jump over else
+                updateBytecodeArg(jumpIfFalsePosition, nextBytecodePosition()); // jump to false
+                enterStatements(ctx.statements(2)); // false branch
+                updateBytecodeArg(jumpPosition, nextBytecodePosition());
+            }
+        }
+
+        @Override
+        public void exitInvokeExpression(InvokeExpressionContext ctx) {
+            long args = ctx.functionArguments().expression().size();
+            emit(BytecodeType.LoadUnsigned, args); // num args
+
+            int altNumber = ctx.getAltNumber();
+            switch (altNumber) {
+                case 0:
+                    // internal call
+                    String fnName = ctx.identifier(0).getText();
+                    long position = emit(BytecodeType.InvokeFunction, Integer.MAX_VALUE); // will update later
+                    this.functionsCallsNeedingResolution.add(
+                        FunctionCall.builder()
+                            .calleeName(fnName)
+                            .callerName(this.functionName)
+                            .callerBytecodeNumber(position)
+                            .build()
+                    );
+                    break;
+                case 1:
+                    // external call
+                    String module = ctx.identifier(0).getText();
+                    if (!"system".equals(module)) {
+                        throw new RuntimeException("Only system module calls are currently supported");
+                    }
+                    String fn = ctx.identifier(1).getText();
+                    checkNative(fn);
+                    long fnNumber = strings.value(fn);
+                    emit(BytecodeType.InvokeNative, fnNumber);
+                    break;
+                default: {
+                    throw new RuntimeException("Unhandled alt number: " + altNumber);
+                }
+            }
+        }
+
+        @Override
+        public void exitExpressionStatement(ExpressionStatementContext ctx) {
+            emit(BytecodeType.Pop);
+        }
+
+        @Override
+        public void exitAssignStatement(AssignStatementContext ctx) {
+            String local = ctx.identifier().getText();
+            long localId = lookupLocal(local);
+            emit(BytecodeType.StoreLocal, localId);
+        }
+
+        @Override
+        public void exitReturnStatement(ReturnStatementContext ctx) {
+            int alt = ctx.getAltNumber();
+            switch (alt) {
+                case 0:
+                    // no data
+                    emit(BytecodeType.LoadNil);
+                    emit(BytecodeType.Return);
+                    break;
+                case 1:
+                    // expression
+                    emit(BytecodeType.Return);
+                    break;
+                default:
+                    throw new RuntimeException("Unhandled return alt type " + alt);
+            }
+        }
+
+        @Override
+        public void enterVariableExpression(VariableExpressionContext ctx) {
+            String local = ctx.identifier().getText();
+            long localId = lookupLocal(local);
+            emit(BytecodeType.LoadLocal, localId);
+        }
+
+        @Override
+        public void enterIntegerLiteral(IntegerLiteralContext ctx) {
+            String text = ctx.INTEGER().getText();
+            emit(BytecodeType.LoadInteger, integers.value(Long.valueOf(text)));
+        }
+
+        @Override
+        public void enterStringLiteral(StringLiteralContext ctx) {
+            String text = ctx.STRING().getText();
+            emit(BytecodeType.LoadString, strings.value(text));
+        }
+
+        @Override
+        public void enterBooleanLiteral(BooleanLiteralContext ctx) {
+            boolean result = Boolean.valueOf(ctx.BOOLEAN().getText());
+            BytecodeType bc = result ? BytecodeType.LoadTrue : BytecodeType.LoadFalse;
+            emit(bc);
+        }
+
+        private long emit(BytecodeType bc, long arg) {
+            return emit(new Bytecode(bc, arg));
+        }
+
+        private long emit(BytecodeType bc) {
+            return emit(new Bytecode(bc));
+        }
+
+        private void updateBytecodeArg(long position, long value) {
+            this.bytecode.get((int) position).setArg(value);
+        }
+
+        private long nextBytecodePosition() {
+            return this.bytecode.size();
+        }
+
+        private long emit(Bytecode bc) {
+            long position = this.bytecode.size();
+            this.bytecode.add(bc);
+            return position;
+        }
+
+        private long defineLocal(String identifier) {
+            if (this.locals.containsKey(identifier)) {
+                throw new IllegalStateException(
+                    String.format("Duplicate identifier %s in function %s", identifier, functionName)
+                );
+            }
+            long ret = this.locals.size();
+            this.locals.put(identifier, ret);
+            return ret;
+        }
+
+        private boolean isDefined(String local) {
+            return this.locals.containsKey(local);
+        }
+
+        private Long lookupLocal(String identifier) {
+            if (!this.locals.containsKey(identifier)) {
+                throw new IllegalStateException(
+                    String.format("Reference to undefined variable %s in function %s", identifier, functionName)
+                );
+            }
+            return this.locals.get(identifier);
+        }
+
+        private void checkNative(String fnName) {
+            if (!NATIVES.contains(fnName)) {
+                throw new IllegalStateException(String.format("Call to undefined native function %s in %s", fnName, functionName));
+            }
         }
     }
 

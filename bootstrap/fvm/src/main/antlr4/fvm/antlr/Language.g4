@@ -78,21 +78,20 @@ invokeExpression
     ;
 
 literalExpression
-    : string
-    | integer
-    | identifier
-    | bool
+    : stringLiteral
+    | integerLiteral
+    | booleanLiteral
     ;
 
-bool
+booleanLiteral
     : BOOLEAN
     ;
 
-string
+stringLiteral
     : STRING
     ;
 
-integer
+integerLiteral
     : INTEGER
     ;
 
