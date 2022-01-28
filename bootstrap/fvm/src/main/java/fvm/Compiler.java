@@ -29,14 +29,20 @@ import fvm.antlr.LanguageParser;
 import fvm.antlr.LanguageParser.AssignStatementContext;
 import fvm.antlr.LanguageParser.BooleanLiteralContext;
 import fvm.antlr.LanguageParser.DefineStatementContext;
+import fvm.antlr.LanguageParser.EmptyReturnStatementContext;
+import fvm.antlr.LanguageParser.ExpressionReturnStatementContext;
 import fvm.antlr.LanguageParser.ExpressionStatementContext;
+import fvm.antlr.LanguageParser.ExternalInvokeExpressionContext;
 import fvm.antlr.LanguageParser.FunctionDefinitionContext;
 import fvm.antlr.LanguageParser.IfStatementContext;
 import fvm.antlr.LanguageParser.IntegerLiteralContext;
+import fvm.antlr.LanguageParser.InternalInvokeExpressionContext;
 import fvm.antlr.LanguageParser.InvokeExpressionContext;
+import fvm.antlr.LanguageParser.OneArmedIfStatementContext;
 import fvm.antlr.LanguageParser.ProgramContext;
 import fvm.antlr.LanguageParser.ReturnStatementContext;
 import fvm.antlr.LanguageParser.StringLiteralContext;
+import fvm.antlr.LanguageParser.TwoArmedIfStatementContext;
 import fvm.antlr.LanguageParser.VariableExpressionContext;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -92,7 +98,7 @@ public class Compiler {
         try (FileOutputStream out = new FileOutputStream(new File(outputFilePath))) {
             // write out each function
             for (Function fn : compiledCode.getFunctions()) {
-                writeLn(out, "; %s", fn.getName());
+                writeLn(out, "; begin - %s", fn.getName());
                 writeLn(out, "@function");
                 writeLn(out, "@arity %s", fn.getArity());
                 writeLn(out, "@locals %s", fn.getLocals());
@@ -104,12 +110,16 @@ public class Compiler {
                     }
                 }
                 writeLn(out, "@endfunction");
-                writeLn(out, "; %s", fn.getName());
+                writeLn(out, "; end - %s\n", fn.getName());
             }
+            writeLn(out, "");
+            writeLn(out, "; Integer constants");
             // write out integer constant
             for (Long integer : compiledCode.getIntegerConstants()) {
                 writeLn(out, "@integer %s", integer.toString());
             }
+            writeLn(out, "");
+            writeLn(out, "; String constants");
             // write out each string constant
             for (String str : compiledCode.getStringConstants()) {
                 writeLn(out, "@string %s", str);
@@ -230,16 +240,17 @@ public class Compiler {
     @Builder
     private static final class FunctionCall {
         @NonNull private final String calleeName;
+        @NonNull private final Long callerArgs;
         @NonNull private final String callerName;
         @NonNull private final Long callerBytecodeNumber;
     }
 
     private static final class Listener extends LanguageBaseListener {
 
-        private static final Set<String> NATIVES = new HashSet<>();
+        private static final Map<String, Long> NATIVES = new HashMap<>();
         static {
-            NATIVES.add("print");
-            NATIVES.add("println");
+            NATIVES.put("print", 1L);
+            NATIVES.put("println", 1L);
         }
 
         @Getter
@@ -272,19 +283,35 @@ public class Compiler {
             serializedFunctions.add(main);
             for (Function fn : this.functions.values()) {
                 if (fn.getName().equals("main")) {
+                    fn.setIndex(0);
                     continue;
                 }
                 serializedFunctions.add(fn);
             }
+            for (int i = 0; i < serializedFunctions.size(); i++) {
+                serializedFunctions.get(i).setIndex(i);
+            }
             // validate all functions refer to known things
             for (FunctionCall call : functionsCallsNeedingResolution) {
+                System.out.println(String.format(
+                    "Compiling function call in %s at %s to %s", 
+                    call.getCallerName(), call.getCallerBytecodeNumber(), call.getCalleeName()));
                 String toResolve = call.getCalleeName();
                 if (!this.functions.containsKey(toResolve)) {
                     throw new IllegalStateException(
                         String.format("Call to unbound function %s in %s", toResolve, call.getCallerName())
                     );
                 }
-                long fnIndex = this.functions.get(toResolve).getIndex();
+                Function callee = this.functions.get(toResolve);
+                if (call.getCallerArgs() != callee.getArity()) {
+                    throw new IllegalStateException(
+                        String.format(
+                            "Arity mismatch in call to function %s in %s expected %s argument(s) but got %s argument(s)", 
+                            toResolve, call.getCallerName(), callee.getArity(), call.getCallerArgs()
+                        )
+                    );
+                }
+                long fnIndex = callee.getIndex();
                 this.functions.get(call.getCallerName()).getBytecode().get(call.getCallerBytecodeNumber().intValue()).setArg(fnIndex);
             }
             // copy over integer and strings
@@ -309,12 +336,17 @@ public class Compiler {
                     String.format("Redefinition of function %s", functionName)
                 );
             }
+            System.out.println("Compiling " + functionName);
         }
 
         @Override
         public void exitFunctionDefinition(FunctionDefinitionContext ctx) {
-            emit(BytecodeType.LoadNil);
-            emit(BytecodeType.Return);
+            if (functionName.equals("main")) {
+                emit(BytecodeType.Halt);
+            } else {
+                emit(BytecodeType.LoadNil);
+                emit(BytecodeType.Return);
+            }
             functions.put(
                 functionName,
                 Function.builder()
@@ -354,62 +386,61 @@ public class Compiler {
         }
 
         @Override
-        public void enterIfStatement(IfStatementContext ctx) {
+        public void enterOneArmedIfStatement(OneArmedIfStatementContext ctx) {
             enterExpression(ctx.expression());
-
             long jumpIfFalsePosition = emit(BytecodeType.JumpIfFalse, 0);
-
-            int altNumber = ctx.getAltNumber();
-            if (altNumber != 0 && altNumber != 1) {
-                throw new RuntimeException("Unhandled alt number in if " + altNumber);
-            }
-            boolean oneArmIf = altNumber == 0;
-            if (oneArmIf) {
-                enterStatements(ctx.statements(0));
-                updateBytecodeArg(jumpIfFalsePosition, nextBytecodePosition());
-            } else /* two armed if */ {
-                enterStatements(ctx.statements(1)); // true branch
-                long jumpPosition = emit(BytecodeType.Jump, 0); // jump over else
-                updateBytecodeArg(jumpIfFalsePosition, nextBytecodePosition()); // jump to false
-                enterStatements(ctx.statements(2)); // false branch
-                updateBytecodeArg(jumpPosition, nextBytecodePosition());
-            }
+            enterStatements(ctx.statements());
+            updateBytecodeArg(jumpIfFalsePosition, nextBytecodePosition());
+            // clear the children so the listener doesn't walk them after we have manually done so
+            ctx.children.clear();
         }
 
         @Override
-        public void exitInvokeExpression(InvokeExpressionContext ctx) {
+        public void enterTwoArmedIfStatement(TwoArmedIfStatementContext ctx) {
+            // TODO: these are bugged right now, because the enter calls we manually
+            // are doing do not visit all the children
+            enterExpression(ctx.expression());
+            long jumpIfFalsePosition = emit(BytecodeType.JumpIfFalse, 0);
+            enterStatements(ctx.statements().get(0)); // true branch
+            long jumpPosition = emit(BytecodeType.Jump, 0); // jump over else
+            updateBytecodeArg(jumpIfFalsePosition, nextBytecodePosition()); // jump to false
+            enterStatements(ctx.statements().get(1)); // false branch
+            updateBytecodeArg(jumpPosition, nextBytecodePosition());
+            // clear the children so the listener doesn't walk them after we have manually done so
+            ctx.children.clear();
+        }
+
+        @Override
+        public void exitInternalInvokeExpression(InternalInvokeExpressionContext ctx) {
             long args = ctx.functionArguments().expression().size();
             emit(BytecodeType.LoadUnsigned, args); // num args
+            System.out.println(String.format("Compiling internal call in %s", functionName));
+            // internal call
+            String fnName = ctx.identifier().getText();
+            long position = emit(BytecodeType.InvokeFunction, Integer.MAX_VALUE); // will update later
+            this.functionsCallsNeedingResolution.add(
+                FunctionCall.builder()
+                    .calleeName(fnName)
+                    .callerArgs(args)
+                    .callerName(this.functionName)
+                    .callerBytecodeNumber(position)
+                    .build()
+            );
+        }
 
-            int altNumber = ctx.getAltNumber();
-            switch (altNumber) {
-                case 0:
-                    // internal call
-                    String fnName = ctx.identifier(0).getText();
-                    long position = emit(BytecodeType.InvokeFunction, Integer.MAX_VALUE); // will update later
-                    this.functionsCallsNeedingResolution.add(
-                        FunctionCall.builder()
-                            .calleeName(fnName)
-                            .callerName(this.functionName)
-                            .callerBytecodeNumber(position)
-                            .build()
-                    );
-                    break;
-                case 1:
-                    // external call
-                    String module = ctx.identifier(0).getText();
-                    if (!"system".equals(module)) {
-                        throw new RuntimeException("Only system module calls are currently supported");
-                    }
-                    String fn = ctx.identifier(1).getText();
-                    checkNative(fn);
-                    long fnNumber = strings.value(fn);
-                    emit(BytecodeType.InvokeNative, fnNumber);
-                    break;
-                default: {
-                    throw new RuntimeException("Unhandled alt number: " + altNumber);
-                }
+        @Override
+        public void exitExternalInvokeExpression(ExternalInvokeExpressionContext ctx) {
+            long args = ctx.functionArguments().expression().size();
+            emit(BytecodeType.LoadUnsigned, args); // num args
+            System.out.println(String.format("Compiling external call in %s", functionName));
+            String module = ctx.identifier(0).getText();
+            if (!"system".equals(module)) {
+                throw new RuntimeException("Only system module calls are currently supported");
             }
+            String fn = ctx.identifier(1).getText();
+            checkNative(fn, args);
+            long fnNumber = strings.value(fn);
+            emit(BytecodeType.InvokeNative, fnNumber);
         }
 
         @Override
@@ -425,21 +456,14 @@ public class Compiler {
         }
 
         @Override
-        public void exitReturnStatement(ReturnStatementContext ctx) {
-            int alt = ctx.getAltNumber();
-            switch (alt) {
-                case 0:
-                    // no data
-                    emit(BytecodeType.LoadNil);
-                    emit(BytecodeType.Return);
-                    break;
-                case 1:
-                    // expression
-                    emit(BytecodeType.Return);
-                    break;
-                default:
-                    throw new RuntimeException("Unhandled return alt type " + alt);
-            }
+        public void exitEmptyReturnStatement(EmptyReturnStatementContext ctx) {
+            emit(BytecodeType.LoadNil);
+            emit(BytecodeType.Return);
+        }
+
+        @Override
+        public void exitExpressionReturnStatement(ExpressionReturnStatementContext ctx) {
+            emit(BytecodeType.Return);
         }
 
         @Override
@@ -514,9 +538,15 @@ public class Compiler {
             return this.locals.get(identifier);
         }
 
-        private void checkNative(String fnName) {
-            if (!NATIVES.contains(fnName)) {
+        private void checkNative(String fnName, long args) {
+            if (!NATIVES.containsKey(fnName)) {
                 throw new IllegalStateException(String.format("Call to undefined native function %s in %s", fnName, functionName));
+            }
+            Long actualArity = NATIVES.get(fnName);
+            if (actualArity != args) {
+                throw new IllegalStateException(String.format(
+                    "Incorrect arity in call to %s in %s expected %s argument(s) got %s argument(s)",
+                    fnName, functionName, actualArity, args));
             }
         }
     }

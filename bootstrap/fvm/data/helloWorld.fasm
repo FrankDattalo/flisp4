@@ -1,0 +1,37 @@
+; begin - main
+@function
+@arity 0
+@locals 1
+    LoadInteger 0
+    StoreLocal 0
+    JumpIfFalse 3
+    LoadLocal 0
+    LoadUnsigned 1
+    InvokeNative 0
+    Pop
+    LoadInteger 0
+    LoadUnsigned 1
+    InvokeFunction 1
+    Pop
+    LoadLocal 0
+    Return
+    LoadNil
+    Return
+@endfunction
+; end - main
+
+; begin - apple
+@function
+@arity 1
+@locals 1
+    LoadNil
+    Return
+@endfunction
+; end - apple
+
+
+; Integer constants
+@integer 1
+
+; String constants
+@string println

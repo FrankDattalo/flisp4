@@ -9,7 +9,7 @@ definition
     ;
 
 functionDefinition
-    :   'fn' identifier '(' functionParameters ')' '{' statements '}'
+    :   'fn' identifier '(' functionParameters ')' '{' statements? '}'
     ;
 
 functionParameters
@@ -35,8 +35,8 @@ statement
     ;
 
 returnStatement
-    : 'return' ';'
-    | 'return' expression ';'
+    : 'return' ';' #emptyReturnStatement
+    | 'return' expression ';' #expressionReturnStatement
     ;
 
 expressionStatement
@@ -64,17 +64,17 @@ assignStatement
 ifStatement
     :   'if' expression '{' 
             statements?
-        '}'
+        '}' #oneArmedIfStatement
     |   'if' expression '{'
             statements?
         '}' 'else' '{'
             statements?
-        '}'
+        '}' #twoArmedIfStatement
     ;
 
 invokeExpression
-    : identifier '(' functionArguments ')'
-    | identifier ':' identifier '(' functionArguments ')'
+    : identifier '(' functionArguments ')' #internalInvokeExpression
+    | identifier ':' identifier '(' functionArguments ')' #externalInvokeExpression
     ;
 
 literalExpression
