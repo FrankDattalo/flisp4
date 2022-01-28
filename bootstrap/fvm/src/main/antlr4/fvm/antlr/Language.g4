@@ -1,50 +1,91 @@
 grammar Language;
 
 program
-    : functionDefinition+
+    : definition+
+    ;
+
+definition
+    : functionDefinition
     ;
 
 functionDefinition
-    : '(' 'define' '(' symbol (symbol)* ')' expression+ ')'
+    :   'fn' identifier '(' functionParameters ')' '{' statements '}'
+    ;
+
+functionParameters
+    :
+    | identifier (',' identifier)*
+    ;
+
+functionArguments
+    :
+    | expression (',' expression)*
+    ;
+
+statements
+    : statement+
+    ;
+
+statement
+    : ifStatement
+    | assignStatement
+    | defineStatement
+    | expressionStatement
+    | returnStatement
+    ;
+
+returnStatement
+    : 'return' ';'
+    | 'return' expression ';'
+    ;
+
+expressionStatement
+    : expression ';'
     ;
 
 expression
-    : defineExpression
-    | setExpression
-    | lambdaExpression
-    | ifExpression
-    | invokeExpression
+    : invokeExpression
     | literalExpression
+    | variableExpression
     ;
 
-defineExpression
-    : '(' 'define' symbol expression ')'
+variableExpression
+    : identifier
     ;
 
-setExpression
-    : '(' 'set!' symbol expression ')'
+defineStatement
+    : 'var' identifier '=' expression ';'
     ;
 
-lambdaExpression
-    : '(' 'lambda' arguments expression+ ')'
+assignStatement
+    : identifier '=' expression ';'
     ;
 
-arguments
-    : '(' symbol* ')'
-    ;
-
-ifExpression
-    : '(' 'if' expression expression expression ')'
+ifStatement
+    :   'if' expression '{' 
+            statements?
+        '}'
+    |   'if' expression '{'
+            statements?
+        '}' 'else' '{'
+            statements?
+        '}'
     ;
 
 invokeExpression
-    : '(' expression expression* ')'
+    : identifier '(' functionArguments ')'
+    | identifier ':' identifier '(' functionArguments ')'
     ;
 
 literalExpression
     : string
     | integer
-    | symbol
+    | identifier
+    | bool
+    ;
+
+bool
+    : BOOLEAN
     ;
 
 string
@@ -55,7 +96,7 @@ integer
     : INTEGER
     ;
 
-symbol
+identifier
     : IDENTIFIER
     ;
 
@@ -64,7 +105,12 @@ IDENTIFIER
     ;
 
 INTEGER
-    :  ([0-9] | [1-9][0-9]+ );
+    :  ([0-9] | [1-9][0-9]+ )
+    ;
+
+BOOLEAN
+    : 'true' | 'false'
+    ;
 
 STRING
     : '"' ~([\n"])* '"'

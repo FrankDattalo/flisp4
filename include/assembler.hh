@@ -150,22 +150,22 @@ private:
 
     static Bytecode getBytecode(const std::vector<std::string>& line) {
         std::map<std::string, BytecodeType> bytecode_by_type{
-            {"hlt", BytecodeType::Halt},
-            {"ll", BytecodeType::LoadLocal},
-            {"sl", BytecodeType::StoreLocal},
-            {"jnz", BytecodeType::JumpIfFalse},
-            {"jmp", BytecodeType::Jump},
-            {"call", BytecodeType::Invoke},
-            {"true", BytecodeType::LoadTrue},
-            {"false", BytecodeType::LoadFalse},
-            {"nil", BytecodeType::LoadNil},
-            {"li", BytecodeType::LoadInteger},
-            {"ls", BytecodeType::LoadSymbol},
-            {"lc", BytecodeType::LoadCharacter},
-            {"lf", BytecodeType::LoadField},
-            {"sf", BytecodeType::StoreField},
-            {"ret", BytecodeType::Return},
-            {"fn", BytecodeType::MakeFunction}
+            {"Halt", BytecodeType::Halt},
+            {"LoadLocal", BytecodeType::LoadLocal},
+            {"StoreLocal", BytecodeType::StoreLocal},
+            {"JumpIfFalse", BytecodeType::JumpIfFalse},
+            {"Jump", BytecodeType::Jump},
+            {"Invoke", BytecodeType::Invoke},
+            {"LoadTrue", BytecodeType::LoadTrue},
+            {"LoadFalse", BytecodeType::LoadFalse},
+            {"LoadNil", BytecodeType::LoadNil},
+            {"LoadInteger", BytecodeType::LoadInteger},
+            {"LoadSymbol", BytecodeType::LoadSymbol},
+            {"LoadCharacter", BytecodeType::LoadCharacter},
+            {"LoadField", BytecodeType::LoadField},
+            {"StoreField", BytecodeType::StoreField},
+            {"Return", BytecodeType::Return},
+            {"MakeFunction", BytecodeType::MakeFunction}
         };
 
         const std::string & bc = line.at(0);

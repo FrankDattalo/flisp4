@@ -5,11 +5,10 @@
     @arity 0
     @locals 0
 
-    fn 1
-    true
-    call 1
-
-    hlt
+    MakeFunction 1
+    LoadTrue 
+    Invoke 1
+    Halt
 
 @endfunction
 
@@ -18,16 +17,15 @@
     @arity 1
     @locals 2
 
-    ll 0
-    sl 1
-    li 0
-    lc 0
-    ls 0
-    ll 0
-    ret
+    LoadLocal 0
+    StoreLocal 1
+    LoadInteger 0
+    LoadCharacter 0
+    LoadSymbol 0
+    LoadLocal 0
+    Return
 
 @endfunction
-
 
 @int 1
 @int 2
@@ -35,3 +33,5 @@
 @char c
 
 @symbol symbol_here
+
+@string string_here
