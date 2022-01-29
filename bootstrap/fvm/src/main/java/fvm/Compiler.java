@@ -22,6 +22,7 @@ import org.antlr.v4.runtime.Recognizer;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.ParseTreeWalker;
 import org.apache.commons.io.IOUtils;
+import org.w3c.dom.traversal.TreeWalker;
 
 import fvm.antlr.LanguageBaseListener;
 import fvm.antlr.LanguageLexer;
@@ -387,9 +388,9 @@ public class Compiler {
 
         @Override
         public void enterOneArmedIfStatement(OneArmedIfStatementContext ctx) {
-            enterExpression(ctx.expression());
+            ParseTreeWalker.DEFAULT.walk(this, ctx.expression());
             long jumpIfFalsePosition = emit(BytecodeType.JumpIfFalse, 0);
-            enterStatements(ctx.statements());
+            ParseTreeWalker.DEFAULT.walk(this, ctx.statements());
             updateBytecodeArg(jumpIfFalsePosition, nextBytecodePosition());
             // clear the children so the listener doesn't walk them after we have manually done so
             ctx.children.clear();
@@ -397,14 +398,12 @@ public class Compiler {
 
         @Override
         public void enterTwoArmedIfStatement(TwoArmedIfStatementContext ctx) {
-            // TODO: these are bugged right now, because the enter calls we manually
-            // are doing do not visit all the children
-            enterExpression(ctx.expression());
+            ParseTreeWalker.DEFAULT.walk(this, ctx.expression());
             long jumpIfFalsePosition = emit(BytecodeType.JumpIfFalse, 0);
-            enterStatements(ctx.statements().get(0)); // true branch
+            ParseTreeWalker.DEFAULT.walk(this, ctx.statements().get(0)); // true branch
             long jumpPosition = emit(BytecodeType.Jump, 0); // jump over else
             updateBytecodeArg(jumpIfFalsePosition, nextBytecodePosition()); // jump to false
-            enterStatements(ctx.statements().get(1)); // false branch
+            ParseTreeWalker.DEFAULT.walk(this, ctx.statements().get(1)); // false branch
             updateBytecodeArg(jumpPosition, nextBytecodePosition());
             // clear the children so the listener doesn't walk them after we have manually done so
             ctx.children.clear();

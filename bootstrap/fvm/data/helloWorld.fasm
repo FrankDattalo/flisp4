@@ -4,7 +4,10 @@
 @locals 1
     LoadInteger 0
     StoreLocal 0
-    JumpIfFalse 3
+    LoadLocal 0
+    JumpIfFalse 6
+    LoadLocal 0
+    Return
     LoadLocal 0
     LoadUnsigned 1
     InvokeNative 0
