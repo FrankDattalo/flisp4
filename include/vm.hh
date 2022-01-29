@@ -10,11 +10,13 @@
 #include "object.hh"
 #include "stack.hh"
 #include "symbol_table.hh"
+#include "nativeregistry.hh"
 
 class VirtualMachine : public RootMarker {
 private:
     File file;
     Heap heap;
+    NativeFunctionRegistry registry;
     std::unique_ptr<StackFrame> frame;
 public:
     VirtualMachine(File _file, std::uint64_t heap_size) 
@@ -46,6 +48,10 @@ public:
         DEBUGLN("Finished marking root objects");
     }
 
+    void RegisterNativeFunction(NativeFunction fn) {
+        this->registry.Register(std::move(fn));
+    }
+
 private:
     void loop() {
         while (true) {
@@ -66,7 +72,7 @@ private:
                 break;
             }
 
-            apply(bc);
+            applyBytecode(bc);
 
             if (IS_DEBUG_ENABLED()) {
                 waitForInput();
@@ -74,7 +80,7 @@ private:
         }
     }
 
-    void apply(const Bytecode& bc) {
+    void applyBytecode(const Bytecode& bc) {
         switch (bc.GetType()) {
             case BytecodeType::JumpIfFalse: { DEBUGLN("JumpIfFalse"); JumpIfFalse(bc); return; }
             case BytecodeType::Jump: { DEBUGLN("Jump"); Jump(bc); return; }
@@ -117,11 +123,32 @@ private:
     }
 
     void InvokeNative(const Bytecode& bc) {
-        // TODO
+        std::uint64_t num_args = this->frame->Pop().GetUnsignedInteger();
+        const std::string& native_fn_name = this->file.GetStringConstants().at(bc.GetUnsignedArg());
+        const NativeFunction& fn = this->registry.Get(native_fn_name);
+        if (fn.GetArity() != num_args) {
+            // TODO, don't crash the vm
+            throw std::runtime_error{std::string{"Arity mismatch on native function call"}};
+        }
+        fn.Apply(this);
     }
 
     void InvokeFunction(const Bytecode& bc) {
-        // TODO
+        const Function& fn = this->file.GetFunctions().at(bc.GetUnsignedArg());
+        std::uint64_t num_args = this->frame->Pop().GetUnsignedInteger();
+        if (fn.GetArity() != num_args) {
+            // TODO, don't crash the vm
+            throw std::runtime_error{std::string{"Arity mismatch on function call"}};
+        }
+        pushFrame(&fn);
+        // assign the arguments from the outer stack frame
+        StackFrame* outer = this->frame->GetNullableOuter();
+        std::size_t local_index = num_args - 1;
+        for (std::uint64_t i = 0; i < num_args; i++)  {
+            this->frame->SetLocal(local_index, outer->Pop());
+            local_index--;
+        }
+        outer->Pop(); // pop the function reference
     }
 
     void LoadUnsigned(const Bytecode& bc) {
@@ -143,30 +170,6 @@ private:
     void Jump(const Bytecode& bc) {
         this->frame->SetProgramCounter(bc.GetUnsignedArg());
     }
-
-    // TODO: remove 
-    //void Invoke(const Bytecode& bc) {
-    //    //std::uint64_t num_args = bc.GetArg();
-    //    Object reciever = this->frame->OffsetFromTop(num_args);
-    //    if (!reciever.IsType(ObjectType::FunctionReference)) {
-    //        // TODO, don't crash the vm
-    //        throw std::runtime_error{std::string{"Expected reciever to be a function"}};
-    //    }
-    //    const Function* fn = reciever.GetFunctionReference();
-    //    if (fn->GetArity() != num_args) {
-    //        // TODO, don't crash the vm
-    //        throw std::runtime_error{std::string{"Arity mismatch"}};
-    //    }
-    //    pushFrame(fn);
-    //    // assign the arguments from the outer stack frame
-    //    StackFrame* outer = this->frame->GetNullableOuter();
-    //    std::size_t local_index = num_args - 1;
-    //    for (std::uint64_t i = 0; i < num_args; i++)  {
-    //        this->frame->SetLocal(local_index, outer->Pop());
-    //        local_index--;
-    //    }
-    //    outer->Pop(); // pop the function reference
-    //}
 
     void LoadTrue(const Bytecode& bc) {
         Object temp;
