@@ -9,21 +9,20 @@
 
 enum class BytecodeType {
     Halt,
-    LoadLocal,
-    StoreLocal,
     JumpIfFalse,
     Jump,
-    Invoke,
+    LoadNil,
+    Return,
+    LoadLocal,
+    StoreLocal,
+    LoadInteger,
+    LoadString,
     LoadTrue,
     LoadFalse,
-    LoadNil,
-    LoadInteger,
-    LoadSymbol,
-    LoadCharacter,
-    LoadField,
-    StoreField,
-    Return,
-    MakeFunction,
+    InvokeNative,
+    InvokeFunction,
+    LoadUnsigned,
+    Pop
 };
 
 static_assert(sizeof(BytecodeType) <= sizeof(std::uint32_t));

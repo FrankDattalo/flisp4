@@ -7,11 +7,9 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 
 import org.antlr.v4.runtime.BaseErrorListener;
 import org.antlr.v4.runtime.CharStream;
@@ -22,7 +20,6 @@ import org.antlr.v4.runtime.Recognizer;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.ParseTreeWalker;
 import org.apache.commons.io.IOUtils;
-import org.w3c.dom.traversal.TreeWalker;
 
 import fvm.antlr.LanguageBaseListener;
 import fvm.antlr.LanguageLexer;
@@ -35,13 +32,10 @@ import fvm.antlr.LanguageParser.ExpressionReturnStatementContext;
 import fvm.antlr.LanguageParser.ExpressionStatementContext;
 import fvm.antlr.LanguageParser.ExternalInvokeExpressionContext;
 import fvm.antlr.LanguageParser.FunctionDefinitionContext;
-import fvm.antlr.LanguageParser.IfStatementContext;
 import fvm.antlr.LanguageParser.IntegerLiteralContext;
 import fvm.antlr.LanguageParser.InternalInvokeExpressionContext;
-import fvm.antlr.LanguageParser.InvokeExpressionContext;
 import fvm.antlr.LanguageParser.OneArmedIfStatementContext;
 import fvm.antlr.LanguageParser.ProgramContext;
-import fvm.antlr.LanguageParser.ReturnStatementContext;
 import fvm.antlr.LanguageParser.StringLiteralContext;
 import fvm.antlr.LanguageParser.TwoArmedIfStatementContext;
 import fvm.antlr.LanguageParser.VariableExpressionContext;
@@ -59,8 +53,6 @@ public class Compiler {
     public void compile(String inputFilePath, String outputFilePath) {
         System.out.println("Reading " + inputFilePath);
         String input = readToString(inputFilePath);
-        System.out.println("Contents:");
-        System.out.println(input);
         System.out.println("Compiling file...");
         CompiledFile compiledFile = compile(input);
         System.out.println("Compiled!");
@@ -79,9 +71,8 @@ public class Compiler {
         parser.removeErrorListeners();
         parser.addErrorListener(new ThrowingErrorListener());
         ParseTree tree = parser.program();
-        ParseTreeWalker walker = new ParseTreeWalker();
         Listener listener = new Listener();
-        walker.walk(listener, tree);
+        ParseTreeWalker.DEFAULT.walk(listener, tree);
         return listener.getFile();
     }
 
@@ -97,6 +88,10 @@ public class Compiler {
     @SneakyThrows
     private void writeToFile(CompiledFile compiledCode, String outputFilePath) {
         try (FileOutputStream out = new FileOutputStream(new File(outputFilePath))) {
+            // version
+            writeLn(out, "@version 1");
+            writeLn(out, "");
+
             // write out each function
             for (Function fn : compiledCode.getFunctions()) {
                 writeLn(out, "; begin - %s", fn.getName());
@@ -112,12 +107,6 @@ public class Compiler {
                 }
                 writeLn(out, "@endfunction");
                 writeLn(out, "; end - %s\n", fn.getName());
-            }
-            writeLn(out, "");
-            writeLn(out, "; Integer constants");
-            // write out integer constant
-            for (Long integer : compiledCode.getIntegerConstants()) {
-                writeLn(out, "@integer %s", integer.toString());
             }
             writeLn(out, "");
             writeLn(out, "; String constants");
@@ -217,7 +206,6 @@ public class Compiler {
     @AllArgsConstructor
     private static class CompiledFile {
         @NonNull private List<Function> functions;
-        @NonNull private List<Long> integerConstants;
         @NonNull private List<String> stringConstants;
     }
 
@@ -257,7 +245,6 @@ public class Compiler {
         @Getter
         private CompiledFile file;
 
-        private final ConstantPool<Long> integers = new ConstantPool<>();
         private final ConstantPool<String> strings = new ConstantPool<>();
 
         private long arity;
@@ -318,7 +305,6 @@ public class Compiler {
             // copy over integer and strings
             this.file = CompiledFile.builder()
                 .functions(serializedFunctions)
-                .integerConstants(this.integers.getList())
                 .stringConstants(this.strings.getList())
                 .build();
         }
@@ -475,7 +461,7 @@ public class Compiler {
         @Override
         public void enterIntegerLiteral(IntegerLiteralContext ctx) {
             String text = ctx.INTEGER().getText();
-            emit(BytecodeType.LoadInteger, integers.value(Long.valueOf(text)));
+            emit(BytecodeType.LoadInteger, Long.valueOf(text));
         }
 
         @Override

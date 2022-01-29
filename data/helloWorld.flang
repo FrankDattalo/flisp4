@@ -1,0 +1,4 @@
+
+fn main() {
+    system:println("Hello, World!");
+}

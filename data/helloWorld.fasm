@@ -1,0 +1,20 @@
+@version 1
+
+; begin - main
+@function
+@arity 0
+@locals 0
+    LoadString 0
+    LoadUnsigned 1
+    InvokeNative 1
+    Pop
+    Halt
+@endfunction
+; end - main
+
+
+; Integer constants
+
+; String constants
+@string "Hello, World!"
+@string println
