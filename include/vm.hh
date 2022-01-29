@@ -15,7 +15,6 @@ class VirtualMachine : public RootMarker {
 private:
     File file;
     Heap heap;
-    SymbolTable symbol_table;
     std::unique_ptr<StackFrame> frame;
 public:
     VirtualMachine(File _file, std::uint64_t heap_size) 
@@ -63,92 +62,11 @@ private:
 
             DEBUGLN("Loaded bytecode: " << static_cast<std::uint64_t>(bc.GetType()));
 
-            switch (bc.GetType()) {
-                case BytecodeType::LoadLocal: {
-                    DEBUGLN("LoadLocal");
-                    LoadLocal(bc);
-                    break;
-                }
-                case BytecodeType::StoreLocal: {
-                    DEBUGLN("StoreLocal");
-                    StoreLocal(bc);
-                    break;
-                }
-                case BytecodeType::JumpIfFalse: {
-                    DEBUGLN("JumpIfFalse");
-                    JumpIfFalse(bc);
-                    break;
-                }
-                case BytecodeType::Jump: {
-                    DEBUGLN("Jump");
-                    Jump(bc);
-                    break;
-                }
-                case BytecodeType::Invoke: {
-                    DEBUGLN("Invoke");
-                    Invoke(bc);
-                    break;
-                }
-                case BytecodeType::LoadTrue: {
-                    DEBUGLN("LoadTrue");
-                    LoadTrue(bc);
-                    break;
-                }
-                case BytecodeType::LoadFalse: {
-                    DEBUGLN("LoadFalse");
-                    LoadFalse(bc);
-                    break;
-                }
-                case BytecodeType::LoadNil: {
-                    DEBUGLN("LoadNil");
-                    LoadNil(bc);
-                    break;
-                }
-                case BytecodeType::LoadInteger: {
-                    DEBUGLN("LoadInteger");
-                    LoadInteger(bc);
-                    break;
-                }
-                case BytecodeType::LoadSymbol: {
-                    DEBUGLN("LoadSymbol");
-                    LoadSymbol(bc);
-                    break;
-                }
-                case BytecodeType::LoadCharacter: {
-                    DEBUGLN("LoadCharacter");
-                    LoadCharacter(bc);
-                    break;
-                }
-                case BytecodeType::LoadField: {
-                    DEBUGLN("LoadField");
-                    LoadField(bc);
-                    break;
-                }
-                case BytecodeType::StoreField: {
-                    DEBUGLN("StoreField");
-                    StoreField(bc);
-                    break;
-                }
-                case BytecodeType::Return: {
-                    DEBUGLN("Return");
-                    Return(bc);
-                    break;
-                }
-                case BytecodeType::MakeFunction: {
-                    DEBUGLN("MakeFunction");
-                    MakeFunction(bc);
-                    break;
-                }
-                case BytecodeType::Halt: {
-                    DEBUGLN("Halt");
-                    return;
-                }
-                default: {
-                    std::string error_message{"Unknown bytecode in VirtualMachine::loop "};
-                    error_message.append(std::to_string(static_cast<std::uint64_t>(bc.GetType())));
-                    throw std::runtime_error{error_message};
-                }
+            if (bc.GetType() == BytecodeType::Halt) {
+                break;
             }
+
+            apply(bc);
 
             if (IS_DEBUG_ENABLED()) {
                 waitForInput();
@@ -156,51 +74,99 @@ private:
         }
     }
 
+    void apply(const Bytecode& bc) {
+        switch (bc.GetType()) {
+            case BytecodeType::JumpIfFalse: { DEBUGLN("JumpIfFalse"); JumpIfFalse(bc); return; }
+            case BytecodeType::Jump: { DEBUGLN("Jump"); Jump(bc); return; }
+            case BytecodeType::LoadNil: { DEBUGLN("LoadNil"); LoadNil(bc); return; }
+            case BytecodeType::Return: { DEBUGLN("Return"); Return(bc); return; }
+            case BytecodeType::LoadLocal: { DEBUGLN("LoadLocal"); LoadLocal(bc); return; }
+            case BytecodeType::StoreLocal: { DEBUGLN("StoreLocal"); StoreLocal(bc); return; }
+            case BytecodeType::LoadInteger: { DEBUGLN("LoadInteger"); LoadInteger(bc); return; }
+            case BytecodeType::LoadString: { DEBUGLN("LoadString"); LoadString(bc); return; }
+            case BytecodeType::LoadTrue: { DEBUGLN("LoadTrue"); LoadTrue(bc); return; }
+            case BytecodeType::LoadFalse: { DEBUGLN("LoadFalse"); LoadFalse(bc); return; }
+            case BytecodeType::InvokeNative: { DEBUGLN("InvokeNative"); InvokeNative(bc); return; }
+            case BytecodeType::InvokeFunction: { DEBUGLN("InvokeFunction"); InvokeFunction(bc); return; }
+            case BytecodeType::LoadUnsigned: { DEBUGLN("LoadUnsigned"); LoadUnsigned(bc); return; }
+            case BytecodeType::Pop: { DEBUGLN("Pop"); Pop(bc); return; }
+            default: {
+                std::string error_message{"Unknown bytecode in VirtualMachine::loop "};
+                error_message.append(std::to_string(static_cast<std::uint64_t>(bc.GetType())));
+                throw std::runtime_error{error_message};
+            }
+        }
+    }
+
     void LoadLocal(const Bytecode& bc) {
-        this->frame->Push(this->frame->GetLocal(bc.GetArg()));
+        this->frame->Push(this->frame->GetLocal(bc.GetUnsignedArg()));
         this->frame->AdvanceProgramCounter();
     }
 
     void StoreLocal(const Bytecode& bc) {
-        this->frame->SetLocal(bc.GetArg(), this->frame->Pop());
+        this->frame->SetLocal(bc.GetUnsignedArg(), this->frame->Pop());
+        this->frame->AdvanceProgramCounter();
+    }
+
+    void Pop(const Bytecode& bc) {
+        this->frame->Pop();
+    }
+
+    void LoadString(const Bytecode& bc) {
+        // TODO
+    }
+
+    void InvokeNative(const Bytecode& bc) {
+        // TODO
+    }
+
+    void InvokeFunction(const Bytecode& bc) {
+        // TODO
+    }
+
+    void LoadUnsigned(const Bytecode& bc) {
+        Object tmp;
+        tmp.SetUnsignedInteger(bc.GetUnsignedArg());
+        this->frame->Push(tmp);
         this->frame->AdvanceProgramCounter();
     }
 
     void JumpIfFalse(const Bytecode& bc) {
         Object res = this->frame->Pop();
         if (res.IsType(ObjectType::Boolean) && !res.GetBoolean()) {
-            this->frame->SetProgramCounter(bc.GetArg());
+            this->frame->SetProgramCounter(bc.GetUnsignedArg());
         } else {
             this->frame->AdvanceProgramCounter();
         }
     }
 
     void Jump(const Bytecode& bc) {
-        this->frame->SetProgramCounter(bc.GetArg());
+        this->frame->SetProgramCounter(bc.GetUnsignedArg());
     }
 
-    void Invoke(const Bytecode& bc) {
-        std::uint64_t num_args = bc.GetArg();
-        Object reciever = this->frame->OffsetFromTop(num_args);
-        if (!reciever.IsType(ObjectType::FunctionReference)) {
-            // TODO, don't crash the vm
-            throw std::runtime_error{std::string{"Expected reciever to be a function"}};
-        }
-        const Function* fn = reciever.GetFunctionReference();
-        if (fn->GetArity() != num_args) {
-            // TODO, don't crash the vm
-            throw std::runtime_error{std::string{"Arity mismatch"}};
-        }
-        pushFrame(fn);
-        // assign the arguments from the outer stack frame
-        StackFrame* outer = this->frame->GetNullableOuter();
-        std::size_t local_index = num_args - 1;
-        for (std::uint64_t i = 0; i < num_args; i++)  {
-            this->frame->SetLocal(local_index, outer->Pop());
-            local_index--;
-        }
-        outer->Pop(); // pop the function reference
-    }
+    // TODO: remove 
+    //void Invoke(const Bytecode& bc) {
+    //    //std::uint64_t num_args = bc.GetArg();
+    //    Object reciever = this->frame->OffsetFromTop(num_args);
+    //    if (!reciever.IsType(ObjectType::FunctionReference)) {
+    //        // TODO, don't crash the vm
+    //        throw std::runtime_error{std::string{"Expected reciever to be a function"}};
+    //    }
+    //    const Function* fn = reciever.GetFunctionReference();
+    //    if (fn->GetArity() != num_args) {
+    //        // TODO, don't crash the vm
+    //        throw std::runtime_error{std::string{"Arity mismatch"}};
+    //    }
+    //    pushFrame(fn);
+    //    // assign the arguments from the outer stack frame
+    //    StackFrame* outer = this->frame->GetNullableOuter();
+    //    std::size_t local_index = num_args - 1;
+    //    for (std::uint64_t i = 0; i < num_args; i++)  {
+    //        this->frame->SetLocal(local_index, outer->Pop());
+    //        local_index--;
+    //    }
+    //    outer->Pop(); // pop the function reference
+    //}
 
     void LoadTrue(const Bytecode& bc) {
         Object temp;
@@ -223,48 +189,15 @@ private:
 
     void LoadInteger(const Bytecode& bc) {
         Object temp;
-        temp.SetInteger(this->file.GetIntegerConstants().at(bc.GetArg()));
+        temp.SetInteger(bc.GetSignedArg());
         this->frame->Push(temp);
         this->frame->AdvanceProgramCounter();
-    }
-
-    void LoadSymbol(const Bytecode& bc) {
-        // TODO
-        Object temp;
-        const std::string& str = this->file.GetSymbolConstants().at(bc.GetArg());
-        std::uint64_t symbol_id = this->symbol_table.Intern(str);
-        temp.SetSymbol(symbol_id);
-        this->frame->Push(temp);
-        this->frame->AdvanceProgramCounter();
-    }
-
-    void LoadCharacter(const Bytecode& bc) {
-        Object temp;
-        temp.SetCharacter(this->file.GetCharacterConstants().at(bc.GetArg()));
-        this->frame->Push(temp);
-        this->frame->AdvanceProgramCounter();
-    }
-
-    void LoadField(const Bytecode& bc) {
-        // TODO
-    }
-
-    void StoreField(const Bytecode& bc) {
-        // TODO
     }
 
     void Return(const Bytecode& bc) {
         Object ret = this->frame->Pop();
         this->frame = this->frame->GetOuter();
         this->frame->Push(ret);
-        this->frame->AdvanceProgramCounter();
-    }
-
-    void MakeFunction(const Bytecode& bc) {
-        const Function* fn = &this->file.GetFunctions().at(bc.GetArg());
-        Object tmp;
-        tmp.SetFunctionReference(fn);
-        this->frame->Push(tmp);
         this->frame->AdvanceProgramCounter();
     }
 
@@ -311,8 +244,23 @@ private:
             std::cout << "| [" << i << "] ";
             const Bytecode& bc = frame->GetFunction()->GetBytecode().at(i);
             std::cout << Bytecode::TypeToString(bc.GetType());
-            if (Bytecode::HasArg(bc.GetType())) {
-                std::cout << "(" << bc.GetArg() << ")";
+            switch (bc.GetArgType()) {
+                case BytecodeArgType::None: {
+                    break;
+                }
+                case BytecodeArgType::Signed: {
+                    std::cout << bc.GetSignedArg();
+                    break;
+                }
+                case BytecodeArgType::Unsigned: {
+                    std::cout << bc.GetUnsignedArg();
+                    break;
+                }
+                default: {
+                    std::string msg{"Unhandled bytecode arg type in decompile: "};
+                    msg.append(std::to_string(static_cast<std::uint64_t>(bc.GetArgType())));
+                    throw std::runtime_error{msg};
+                }
             }
             if (i == frame->GetProgramCounter()) {
                 std::cout << " <~~~~~~~~~~~~~~~~~~";

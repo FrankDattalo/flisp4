@@ -41,9 +41,7 @@ public:
         // wip file
         std::uint64_t version;
         std::vector<Function> functions;
-        std::vector<std::int64_t> integer_constants;
-        std::vector<char> character_constants;
-        std::vector<std::string> symbol_constants;
+        std::vector<std::string> string_constants;;
 
         // wip function
         std::uint64_t arity;
@@ -77,6 +75,7 @@ public:
                 continue;
             }
 
+            // TODO: read string constants
             if (first == "@version") {
                 version = std::stoull(split.at(1));
                 //DEBUGLN("Version = " << version);
@@ -88,15 +87,6 @@ public:
             } else if (first == "@endfunction") {
                 //DEBUGLN("End function");
                 functions.emplace_back(arity, locals, bytecode);
-            } else if (first == "@int") {
-                //DEBUGLN("Int constant");
-                integer_constants.push_back(std::stoll(split.at(1)));
-            } else if (first == "@char") {
-                //DEBUGLN("Char constant");
-                character_constants.push_back(split.at(1).at(0));
-            } else if (first == "@symbol") {
-                //DEBUGLN("Symbol constant");
-                symbol_constants.push_back(split.at(1));
             } else if (first == "@arity") {
                 arity = std::stoull(split.at(1));
                 //DEBUGLN("Arity = " << arity);
@@ -115,9 +105,7 @@ public:
         File file{
             std::move(version), 
             std::move(functions), 
-            std::move(integer_constants), 
-            std::move(character_constants), 
-            std::move(symbol_constants)};
+            std::move(string_constants)};
 
         BytecodeWriter::Write(file, output_path);
 
@@ -149,43 +137,33 @@ private:
     }
 
     static Bytecode getBytecode(const std::vector<std::string>& line) {
-        std::map<std::string, BytecodeType> bytecode_by_type{
-            {"Halt", BytecodeType::Halt},
-            {"LoadLocal", BytecodeType::LoadLocal},
-            {"StoreLocal", BytecodeType::StoreLocal},
-            {"JumpIfFalse", BytecodeType::JumpIfFalse},
-            {"Jump", BytecodeType::Jump},
-            {"Invoke", BytecodeType::Invoke},
-            {"LoadTrue", BytecodeType::LoadTrue},
-            {"LoadFalse", BytecodeType::LoadFalse},
-            {"LoadNil", BytecodeType::LoadNil},
-            {"LoadInteger", BytecodeType::LoadInteger},
-            {"LoadSymbol", BytecodeType::LoadSymbol},
-            {"LoadCharacter", BytecodeType::LoadCharacter},
-            {"LoadField", BytecodeType::LoadField},
-            {"StoreField", BytecodeType::StoreField},
-            {"Return", BytecodeType::Return},
-            {"MakeFunction", BytecodeType::MakeFunction}
-        };
 
         const std::string & bc = line.at(0);
 
         DEBUGLN("First '" << bc << "'");
 
-        if (bytecode_by_type.find(bc) == bytecode_by_type.end()) {
-            std::string message{"Unknown bytecode: "};
-            message.append(line.at(0));
-            throw std::runtime_error{message};
+        BytecodeType type = Bytecode::TypeFromString(bc);
+
+        switch (Bytecode::ArgType(type)) {
+            case BytecodeArgType::None: {
+                return Bytecode{type};
+            }
+            case BytecodeArgType::Signed: {
+                std::int64_t i = std::stoll(line.at(1));
+                BytecodeArg arg{i};
+                return Bytecode{type, BytecodeArgType::Signed, arg};
+            }
+            case BytecodeArgType::Unsigned: {
+                std::uint64_t u = std::stoull(line.at(1));
+                BytecodeArg arg{u};
+                return Bytecode{type, BytecodeArgType::Unsigned, arg};
+            }
+            default: {
+                std::string msg{"Unhandled bytecode arg type in getBytecode: "};
+                msg.append(std::to_string(static_cast<std::uint64_t>(Bytecode::ArgType(type))));
+                throw std::runtime_error{msg};
+            }
         }
-
-        BytecodeType type = bytecode_by_type.at(line.at(0));
-        std::uint64_t arg = 0;
-
-        if (Bytecode::HasArg(type)) {
-            arg = std::stoull(line.at(1));
-        }
-
-        return Bytecode{type, arg};
     }
 };
 

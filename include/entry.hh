@@ -46,23 +46,30 @@ void decompile(const std::vector<std::string>& args) {
         for (std::size_t j = 0; j < result.GetFunctions().at(i).GetBytecode().size(); j++) {
             const Bytecode & bc = result.GetFunctions().at(i).GetBytecode().at(j);
             std::cout << "    - [" << j << "] " << Bytecode::TypeToString(bc.GetType());
-            if (Bytecode::HasArg(bc.GetType())) {
-                std::cout << "(" << bc.GetArg() << ")";
+            switch (bc.GetArgType()) {
+                case BytecodeArgType::None: {
+                    break;
+                }
+                case BytecodeArgType::Signed: {
+                    std::cout << bc.GetSignedArg();
+                    break;
+                }
+                case BytecodeArgType::Unsigned: {
+                    std::cout << bc.GetUnsignedArg();
+                    break;
+                }
+                default: {
+                    std::string msg{"Unhandled bytecode arg type in decompile: "};
+                    msg.append(std::to_string(static_cast<std::uint64_t>(bc.GetArgType())));
+                    throw std::runtime_error{msg};
+                }
             }
             std::cout << std::endl;
         }
     }
-    std::cout << "Integers:\n";
-    for (std::size_t i = 0; i < result.GetIntegerConstants().size(); i++) {
-        std::cout << "- Int[" << i << "] = " << result.GetIntegerConstants().at(i) << "\n";
-    }
-    std::cout << "Characters:\n";
-    for (std::size_t i = 0; i < result.GetCharacterConstants().size(); i++) {
-        std::cout << "- Char[" << i << "] = " << result.GetCharacterConstants().at(i) << "\n";
-    }
-    std::cout << "Symbol:\n";
-    for (std::size_t i = 0; i < result.GetSymbolConstants().size(); i++) {
-        std::cout << "- Symbol[" << i << "] = " << result.GetSymbolConstants().at(i) << "\n";
+    std::cout << "Strings:\n";
+    for (std::size_t i = 0; i < result.GetStringConstants().size(); i++) {
+        std::cout << "- String[" << i << "] = " << result.GetStringConstants().at(i) << "\n";
     }
 }
 

@@ -13,8 +13,6 @@
 ; end - main
 
 
-; Integer constants
-
 ; String constants
 @string "Hello, World!"
 @string println

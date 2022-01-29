@@ -12,6 +12,7 @@ enum class ObjectType {
     Nil, 
     Reference, 
     Integer, 
+    UnsignedInteger,
     Boolean, 
     Symbol,
     Real,
@@ -78,6 +79,16 @@ public:
     std::int64_t GetInteger() {
         checkType(ObjectType::Integer);
         return this->integer;
+    }
+
+    void SetUnsignedInteger(std::uint64_t value) {
+        this->type = ObjectType::UnsignedInteger;
+        this->unsigned_integer = value;
+    }
+
+    std::uint64_t GetUnsignedInteger() {
+        checkType(ObjectType::UnsignedInteger);
+        return this->unsigned_integer;
     }
 
     void SetCharacter(char value) {
@@ -156,6 +167,9 @@ public:
             }
             case ObjectType::Integer: {
                 return std::to_string(this->GetInteger());
+            }
+            case ObjectType::UnsignedInteger: {
+                return std::to_string(this->GetUnsignedInteger());
             }
             case ObjectType::Boolean: {
                 return this->GetBoolean() ? "true" : "false";

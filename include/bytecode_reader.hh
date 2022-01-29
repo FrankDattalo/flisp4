@@ -45,33 +45,13 @@ public:
             fns.push_back(read_function(input_file));
         }
 
-        // read int constants
-        DEBUGLN("Reading int constants");
-        std::uint64_t int_constant_count = read_u64(input_file);
-        std::vector<std::int64_t> int_constants;
-        int_constants.reserve(int_constant_count);
-        for (std::uint64_t i = 0; i < int_constant_count; i++) {
-            int_constants.push_back(read_i64(input_file));
-        }
-
-
-        // read char constants
-        DEBUGLN("Reading char constants");
-        std::uint64_t char_constant_count = read_u64(input_file);
-        std::vector<char> char_constants;
-        char_constants.reserve(char_constant_count);
-        for (std::uint64_t i = 0; i < char_constant_count; i++) {
-            char_constants.push_back(read_char(input_file));
-        }
-
-
-        // read symbol constants
-        std::uint64_t symbol_constant_count = read_u64(input_file);
-        DEBUGLN("Reading symbol constants");
-        std::vector<std::string> symbol_constants;
-        symbol_constants.reserve(symbol_constant_count);
-        for (std::uint64_t i = 0; i < symbol_constant_count; i++) {
-            symbol_constants.push_back(read_string(input_file));
+        // read string constants
+        std::uint64_t string_constant_count = read_u64(input_file);
+        DEBUGLN("Reading string constants");
+        std::vector<std::string> string_constants;
+        string_constants.reserve(string_constant_count);
+        for (std::uint64_t i = 0; i < string_constant_count; i++) {
+            string_constants.push_back(read_string(input_file));
         }
 
         DEBUGLN("Done reading compiled file");
@@ -79,9 +59,7 @@ public:
         return File{
             version,
             std::move(fns),
-            std::move(int_constants),
-            std::move(char_constants),
-            std::move(symbol_constants)
+            std::move(string_constants)
         };
     }
 private:
@@ -127,9 +105,28 @@ private:
 
     static Bytecode read_bytecode(std::ifstream& stream) {
         std::uint64_t bytecode = read_u64(stream);
-        std::uint64_t arg = read_u64(stream);
         BytecodeType casted = static_cast<BytecodeType>(bytecode);
-        return Bytecode{casted, arg};
+
+        if (Bytecode::HasArg(casted)) {
+            switch (Bytecode::ArgType(casted)) {
+            case BytecodeArgType::Signed: {
+                std::int64_t i = read_i64(stream);
+                BytecodeArg arg{i};
+                return Bytecode{casted, BytecodeArgType::Signed, arg};
+            }
+            case BytecodeArgType::Unsigned: {
+                std::uint64_t u = read_u64(stream);
+                BytecodeArg arg{u};
+                return Bytecode{casted, BytecodeArgType::Unsigned, arg};
+            }
+            default:
+                std::string msg{"Unhandled bytecode arg type in read_bytecode: "};
+                msg.append(std::to_string(static_cast<std::uint64_t>(Bytecode::ArgType(casted))));
+                throw std::runtime_error{msg};
+            }
+        } else {
+            return Bytecode{casted};
+        }
     }
 };
 
