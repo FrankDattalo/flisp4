@@ -22,7 +22,9 @@ public:
     VirtualMachine(File _file, std::uint64_t heap_size) 
     : file{std::move(_file)}
     , heap{heap_size}
-    {}
+    {
+        registerNatives();
+    }
 
     virtual ~VirtualMachine() = default;
 
@@ -54,12 +56,13 @@ public:
 
 private:
     void loop() {
-        while (true) {
-            if (IS_DEBUG_ENABLED()) {
-                DEBUGLN("VM BEFORE");
-                debugPrint();
-            }
+        if (IS_DEBUG_ENABLED()) {
+            DEBUGLN("VM START");
+            debugPrint();
+            waitForInput();
+        }
 
+        while (true) {
             std::size_t pc = this->frame->GetProgramCounter();
 
             DEBUGLN("PC: " << pc);
@@ -75,6 +78,8 @@ private:
             applyBytecode(bc);
 
             if (IS_DEBUG_ENABLED()) {
+                DEBUGLN("VM AFTER INSTRUCTION");
+                debugPrint();
                 waitForInput();
             }
         }
@@ -116,10 +121,16 @@ private:
 
     void Pop(const Bytecode& bc) {
         this->frame->Pop();
+        this->frame->AdvanceProgramCounter();
     }
 
     void LoadString(const Bytecode& bc) {
-        // TODO
+        const std::string& str = this->file.GetStringConstants().at(bc.GetUnsignedArg());
+        Object* result = this->heap.AllocateString(str);
+        Object tmp;
+        tmp.SetReference(result);
+        this->frame->Push(tmp);
+        this->frame->AdvanceProgramCounter();
     }
 
     void InvokeNative(const Bytecode& bc) {
@@ -131,6 +142,7 @@ private:
             throw std::runtime_error{std::string{"Arity mismatch on native function call"}};
         }
         fn.Apply(this);
+        this->frame->AdvanceProgramCounter();
     }
 
     void InvokeFunction(const Bytecode& bc) {
@@ -148,7 +160,6 @@ private:
             this->frame->SetLocal(local_index, outer->Pop());
             local_index--;
         }
-        outer->Pop(); // pop the function reference
     }
 
     void LoadUnsigned(const Bytecode& bc) {
@@ -252,11 +263,11 @@ private:
                     break;
                 }
                 case BytecodeArgType::Signed: {
-                    std::cout << bc.GetSignedArg();
+                    std::cout << " " << bc.GetSignedArg();
                     break;
                 }
                 case BytecodeArgType::Unsigned: {
-                    std::cout << bc.GetUnsignedArg();
+                    std::cout << " " << bc.GetUnsignedArg();
                     break;
                 }
                 default: {
@@ -293,6 +304,18 @@ private:
         DEBUGLN("Press [Enter] to continue...");
         std::string line;
         std::getline(std::cin, line);
+    }
+
+    void registerNatives() {
+        this->registry.Register(NativeFunction{"println", 1, NativePrintln});
+    }
+
+    static void NativePrintln(VirtualMachine* vm) {
+        Object to_print = vm->frame->Pop();
+        std::cout << to_print.ToDebugString() << std::endl; // TODO: change this
+        Object obj;
+        obj.SetNil();
+        vm->frame->Push(obj);
     }
 };
 

@@ -12,6 +12,7 @@
 #include "memory_semantic_macros.hh"
 #include "bytecode.hh"
 #include "debug.hh"
+#include "bytecode_reader.hh"
 #include "bytecode_writer.hh"
 
 class Assembler {
@@ -75,7 +76,6 @@ public:
                 continue;
             }
 
-            // TODO: read string constants
             if (first == "@version") {
                 version = std::stoull(split.at(1));
                 //DEBUGLN("Version = " << version);
@@ -93,6 +93,23 @@ public:
             } else if (first == "@locals") {
                 locals = std::stoull(split.at(1));
                 //DEBUGLN("Locals = " << locals);
+            } else if (first == "@string") {
+                std::stringstream line_stream{line};
+                line_stream.ignore(std::string{"@string"}.size()); // skip over @string directive
+                DEBUGLN("Reading string length");
+                std::uint64_t length = 0;
+                line_stream >> length;
+                line_stream.ignore(1); // the space after the length
+                DEBUGLN("String length: " << length);
+                std::string str;
+                str.reserve(length);
+                for (std::uint64_t i = 0; i < length; i++) {
+                    char c;
+                    line_stream.read(&c, sizeof(char));
+                    str.push_back(c);
+                }
+                DEBUGLN("Final string from '" << line << "' is '" << str << "'");
+                string_constants.push_back(std::move(str));
             } else /* it's a bytecode */ {
                 Bytecode bc = getBytecode(split);
                 bytecode.push_back(bc);

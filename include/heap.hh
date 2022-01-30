@@ -21,6 +21,7 @@ public:
     SemiSpace(std::uint64_t size) {
         data = new Object[size];
         data_size = size;
+        first_free = 0;
     }
 
     ~SemiSpace() {
@@ -113,21 +114,49 @@ public:
         return result;
     }
 
+    // Allocates a string on the heap and returns a pointer to the object header
+    Object* AllocateString(const std::string& str) {
+        DEBUGLN("Allocating string '" << str << "'");
+        std::uint64_t total_allocation_elements = str.length() + 2;
+        Object* result = Allocate(total_allocation_elements);
+        DEBUGLN("Setting object header");
+        result[0].SetObjectHeader(total_allocation_elements);
+        DEBUGLN("Setting string length");
+        result[1].SetUnsignedInteger(str.length());
+        DEBUGLN("Assigning characters to string");
+        for (std::uint64_t char_index = 0; char_index < str.length(); char_index ++) {
+            // skip over first two elements as it's the object header and string length
+            result[char_index + 2].SetCharacter(str.at(char_index));
+        }
+        DEBUGLN("Returning allocated string");
+        return result;
+    }
+
 private:
     // Primary interface for allocating on the heap
     // the data returned is not initialized and must
     // be initialized before use
     Object* Allocate(std::uint64_t num_items) {
 
+        DEBUGLN("Allocating " << num_items);
+
         if (active->CanFit(num_items)) {
+            DEBUGLN("Active semispace can fit");
             return active->Allocate(num_items);
         }
+
+        DEBUGLN("Gc needed");
 
         Gc();
 
+        DEBUGLN("Gc done, trying allocating again");
+
         if (active->CanFit(num_items)) {
+            DEBUGLN("Active semispace can fit after gc");
             return active->Allocate(num_items);
         }
+
+        DEBUGLN("OOM");
 
         throw std::runtime_error{std::string{"Out of memory"}};
     }
@@ -209,18 +238,21 @@ SemiSpaceIterator SemiSpace::Slots() {
 // prior to using
 void Heap::Gc() {
     // swap the spaces 
+    DEBUGLN("Swapping semispaces");
     SemiSpace* temp = active;
     active = passive;
     passive = temp;
 
     // marks all the roots, transferring them to the
     // opposite space in the process
+    DEBUGLN("Marking heap roots");
     for (auto marker : markers) {
         marker->Mark(this);
     }
 
     // iterate over all the newly transferred things
     // and pull over all their children
+    DEBUGLN("Transferring marked pointers");
     SemiSpaceIterator iter = active->Slots();
     while (iter.HasNext()) {
         Object* slot = iter.Next();
@@ -228,6 +260,7 @@ void Heap::Gc() {
     }
 
     // gc the passive size
+    DEBUGLN("Clearing old heap");
     passive->Clear();
 }
 

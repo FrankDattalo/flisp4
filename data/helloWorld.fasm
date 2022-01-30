@@ -14,5 +14,5 @@
 
 
 ; String constants
-@string "Hello, World!"
-@string println
+@string 13 Hello, World!
+@string 7 println

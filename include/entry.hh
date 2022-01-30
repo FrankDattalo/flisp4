@@ -51,11 +51,11 @@ void decompile(const std::vector<std::string>& args) {
                     break;
                 }
                 case BytecodeArgType::Signed: {
-                    std::cout << bc.GetSignedArg();
+                    std::cout << " " << bc.GetSignedArg();
                     break;
                 }
                 case BytecodeArgType::Unsigned: {
-                    std::cout << bc.GetUnsignedArg();
+                    std::cout << " " << bc.GetUnsignedArg();
                     break;
                 }
                 default: {

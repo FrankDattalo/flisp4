@@ -1,0 +1,47 @@
+@version 1
+
+; begin - main
+@function
+@arity 0
+@locals 1
+    LoadInteger 2
+    StoreLocal 0
+    LoadLocal 0
+    LoadUnsigned 1
+    InvokeFunction 1
+    Pop
+    LoadInteger 3
+    StoreLocal 0
+    Halt
+@endfunction
+; end - main
+
+; begin - greet
+@function
+@arity 1
+@locals 1
+    LoadLocal 0
+    JumpIfFalse 9
+    LoadString 0
+    LoadUnsigned 1
+    InvokeNative 1
+    Pop
+    LoadInteger 1
+    Return
+    Jump 15
+    LoadString 2
+    LoadUnsigned 1
+    InvokeNative 1
+    Pop
+    LoadInteger 2
+    Return
+    LoadNil
+    Return
+@endfunction
+; end - greet
+
+
+; String constants
+@string 12 Hello, True!
+@string 7 println
+@string 13 Hello, False!

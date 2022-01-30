@@ -112,7 +112,10 @@ public class Compiler {
             writeLn(out, "; String constants");
             // write out each string constant
             for (String str : compiledCode.getStringConstants()) {
-                writeLn(out, "@string %s", str);
+                write(out, "@string ");
+                write(out, "%d ", str.length());
+                write(out, str);
+                writeLn(out, "");
             }
         }
     }
@@ -467,7 +470,7 @@ public class Compiler {
         @Override
         public void enterStringLiteral(StringLiteralContext ctx) {
             String text = ctx.STRING().getText();
-            emit(BytecodeType.LoadString, strings.value(text));
+            emit(BytecodeType.LoadString, strings.value(text.substring(1, text.length() - 1)));
         }
 
         @Override

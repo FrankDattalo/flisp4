@@ -26,7 +26,7 @@ public:
 
         input_file.open(path, std::ios::binary|std::ios::in);
 
-        std::uint64_t version = read_u64(input_file);
+        std::uint64_t version = ReadU64(input_file);
 
         if (version != COMPATIBLE_VERSION) {
             std::string msg{"Incompatible bytecode version: "};
@@ -38,20 +38,20 @@ public:
 
         // read functions
         DEBUGLN("Reading functions");
-        std::uint64_t fn_count = read_u64(input_file);
+        std::uint64_t fn_count = ReadU64(input_file);
         std::vector<Function> fns;
         fns.reserve(fn_count);
         for (std::uint64_t i = 0; i < fn_count; i++) {
-            fns.push_back(read_function(input_file));
+            fns.push_back(ReadFunction(input_file));
         }
 
         // read string constants
-        std::uint64_t string_constant_count = read_u64(input_file);
+        std::uint64_t string_constant_count = ReadU64(input_file);
         DEBUGLN("Reading string constants");
         std::vector<std::string> string_constants;
         string_constants.reserve(string_constant_count);
         for (std::uint64_t i = 0; i < string_constant_count; i++) {
-            string_constants.push_back(read_string(input_file));
+            string_constants.push_back(ReadString(input_file));
         }
 
         DEBUGLN("Done reading compiled file");
@@ -62,65 +62,66 @@ public:
             std::move(string_constants)
         };
     }
+
 private:
-    static std::string read_string(std::ifstream& stream) {
-        std::uint64_t length = read_u64(stream);
+    static std::string ReadString(std::ifstream& stream) {
+        std::uint64_t length = ReadU64(stream);
         //DEBUGLN("Reading string of " << length << " characters");
         std::string result;
         for (std::uint64_t i = 0; i < length; i++) {
-            result.push_back(read_char(stream));
+            result.push_back(ReadChar(stream));
         }
         return result;
     }
 
-    static char read_char(std::ifstream& stream) {
+    static char ReadChar(std::ifstream& stream) {
         char data = '\0';
         stream.read(reinterpret_cast<char*>(&data), sizeof(data));
         return data;
     }
 
-    static std::uint64_t read_u64(std::ifstream& stream) {
+    static std::uint64_t ReadU64(std::ifstream& stream) {
         std::uint64_t data = 0;
         stream.read(reinterpret_cast<char*>(&data), sizeof(data));
         return data;
     }
 
-    static std::int64_t read_i64(std::ifstream& stream) {
+    static std::int64_t ReadI64(std::ifstream& stream) {
         std::int64_t data = 0;
         stream.read(reinterpret_cast<char*>(&data), sizeof(data));
         return data;
     }
 
-    static Function read_function(std::ifstream& stream) {
-        std::uint64_t arity = read_u64(stream);
-        std::uint64_t locals = read_u64(stream);
-        std::uint64_t bytecode_length = read_u64(stream);
+    static Function ReadFunction(std::ifstream& stream) {
+        std::uint64_t arity = ReadU64(stream);
+        std::uint64_t locals = ReadU64(stream);
+        std::uint64_t bytecode_length = ReadU64(stream);
         std::vector<Bytecode> bytecode;
         bytecode.reserve(bytecode_length);
         for (std::uint64_t i = 0; i < bytecode_length; i++) {
-            bytecode.push_back(read_bytecode(stream));
+            bytecode.push_back(ReadBytecode(stream));
         }
         return Function{arity, locals, std::move(bytecode)};
     }
 
-    static Bytecode read_bytecode(std::ifstream& stream) {
-        std::uint64_t bytecode = read_u64(stream);
+    static Bytecode ReadBytecode(std::ifstream& stream) {
+        std::uint64_t bytecode = ReadU64(stream);
         BytecodeType casted = static_cast<BytecodeType>(bytecode);
 
         if (Bytecode::HasArg(casted)) {
             switch (Bytecode::ArgType(casted)) {
             case BytecodeArgType::Signed: {
-                std::int64_t i = read_i64(stream);
+                std::int64_t i = ReadI64(stream);
                 BytecodeArg arg{i};
                 return Bytecode{casted, BytecodeArgType::Signed, arg};
             }
             case BytecodeArgType::Unsigned: {
-                std::uint64_t u = read_u64(stream);
+                std::uint64_t u = ReadU64(stream);
                 BytecodeArg arg{u};
                 return Bytecode{casted, BytecodeArgType::Unsigned, arg};
             }
             default:
-                std::string msg{"Unhandled bytecode arg type in read_bytecode: "};
+                std::string msg{"Unhandled bytecode arg type in ReadBytecode: "};
                 msg.append(std::to_string(static_cast<std::uint64_t>(Bytecode::ArgType(casted))));
                 throw std::runtime_error{msg};
             }

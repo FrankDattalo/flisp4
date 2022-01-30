@@ -1,0 +1,16 @@
+
+fn main() {
+    var noodle = 2;
+    greet(noodle);
+    noodle = 3;
+}
+
+fn greet(p) {
+    if p {
+        system:println("Hello, True!");
+        return 1;
+    } else {
+        system:println("Hello, False!");
+        return 2;
+    }
+}
