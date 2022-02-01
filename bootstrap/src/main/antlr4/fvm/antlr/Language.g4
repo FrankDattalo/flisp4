@@ -1,7 +1,17 @@
 grammar Language;
 
 program
-    : definition+
+    : module import_* export* definition*
+    ;
+
+module
+    : 'module' identifier ';'
+    ;
+
+import_ : 'import' identifier ';'
+    ;
+
+export : 'export' identifier ';'
     ;
 
 definition
@@ -32,6 +42,17 @@ statement
     | defineStatement
     | expressionStatement
     | returnStatement
+    | tryCatchStatement
+    | whileStatement
+    | throwStatement
+    ;
+
+tryCatchStatement
+    : 'try {' statements? '}' 'catch' identifier '{' statements? '}'
+    ;
+
+whileStatement
+    : 'while' expression '{' statements? '}'
     ;
 
 returnStatement
@@ -39,14 +60,21 @@ returnStatement
     | 'return' expression ';' #expressionReturnStatement
     ;
 
+throwStatement
+    : 'throw' expression ';'
+    ;
+
 expressionStatement
     : expression ';'
     ;
 
 expression
-    : invokeExpression
-    | literalExpression
+    : stringLiteral
+    | integerLiteral
+    | booleanLiteral
+    | nilLiteral
     | variableExpression
+    | invokeExpression
     ;
 
 variableExpression
@@ -77,10 +105,8 @@ invokeExpression
     | identifier ':' identifier '(' functionArguments ')' #externalInvokeExpression
     ;
 
-literalExpression
-    : stringLiteral
-    | integerLiteral
-    | booleanLiteral
+nilLiteral
+    : NIL
     ;
 
 booleanLiteral
@@ -99,12 +125,12 @@ identifier
     : IDENTIFIER
     ;
 
-IDENTIFIER
-    : [a-zA-Z_][a-zA-Z_0-9]*
-    ;
-
 INTEGER
     :  ([0-9] | [1-9][0-9]+ )
+    ;
+
+NIL
+    : 'nil'
     ;
 
 BOOLEAN
@@ -113,6 +139,10 @@ BOOLEAN
 
 STRING
     : '"' ~([\n"])* '"'
+    ;
+
+IDENTIFIER
+    : [a-zA-Z_][a-zA-Z_0-9]*
     ;
 
 WS: [\n\t ] -> skip;

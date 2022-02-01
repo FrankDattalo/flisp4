@@ -257,25 +257,7 @@ private:
         for (std::size_t i = 0; i < frame->GetFunction()->GetBytecode().size(); i++) {
             std::cout << "| [" << i << "] ";
             const Bytecode& bc = frame->GetFunction()->GetBytecode().at(i);
-            std::cout << Bytecode::TypeToString(bc.GetType());
-            switch (bc.GetArgType()) {
-                case BytecodeArgType::None: {
-                    break;
-                }
-                case BytecodeArgType::Signed: {
-                    std::cout << " " << bc.GetSignedArg();
-                    break;
-                }
-                case BytecodeArgType::Unsigned: {
-                    std::cout << " " << bc.GetUnsignedArg();
-                    break;
-                }
-                default: {
-                    std::string msg{"Unhandled bytecode arg type in decompile: "};
-                    msg.append(std::to_string(static_cast<std::uint64_t>(bc.GetArgType())));
-                    throw std::runtime_error{msg};
-                }
-            }
+            std::cout << Bytecode::TypeToString(bc.GetType()) << " " << bc.ArgToString();
             if (i == frame->GetProgramCounter()) {
                 std::cout << " <~~~~~~~~~~~~~~~~~~";
             }

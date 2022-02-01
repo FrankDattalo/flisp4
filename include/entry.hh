@@ -45,26 +45,9 @@ void decompile(const std::vector<std::string>& args) {
         std::cout << "  - Bytecode:\n";
         for (std::size_t j = 0; j < result.GetFunctions().at(i).GetBytecode().size(); j++) {
             const Bytecode & bc = result.GetFunctions().at(i).GetBytecode().at(j);
-            std::cout << "    - [" << j << "] " << Bytecode::TypeToString(bc.GetType());
-            switch (bc.GetArgType()) {
-                case BytecodeArgType::None: {
-                    break;
-                }
-                case BytecodeArgType::Signed: {
-                    std::cout << " " << bc.GetSignedArg();
-                    break;
-                }
-                case BytecodeArgType::Unsigned: {
-                    std::cout << " " << bc.GetUnsignedArg();
-                    break;
-                }
-                default: {
-                    std::string msg{"Unhandled bytecode arg type in decompile: "};
-                    msg.append(std::to_string(static_cast<std::uint64_t>(bc.GetArgType())));
-                    throw std::runtime_error{msg};
-                }
-            }
-            std::cout << std::endl;
+            std::cout 
+                << "    - [" << j << "] " << Bytecode::TypeToString(bc.GetType()) <<
+                " " << bc.ArgToString() << std::endl;
         }
     }
     std::cout << "Strings:\n";

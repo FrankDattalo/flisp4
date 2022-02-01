@@ -1,7 +1,14 @@
 @version 1
 
+@module languageFeatures
+
+@import native
+@import apple
+
+@export main
+
 ; begin - main
-@function
+@function main
 @arity 0
 @locals 1
     LoadInteger 2
@@ -17,21 +24,21 @@
 ; end - main
 
 ; begin - greet
-@function
+@function greet
 @arity 1
 @locals 1
     LoadLocal 0
     JumpIfFalse 9
-    LoadString 0
+    LoadString 5
     LoadUnsigned 1
-    InvokeNative 1
+    InvokeNative 2
     Pop
     LoadInteger 1
     Return
     Jump 15
-    LoadString 2
+    LoadString 6
     LoadUnsigned 1
-    InvokeNative 1
+    InvokeNative 2
     Pop
     LoadInteger 2
     Return
@@ -40,8 +47,39 @@
 @endfunction
 ; end - greet
 
+; begin - looper
+@function looper
+@arity 0
+@locals 0
+    LoadUnsigned 0
+    InvokeExternal 0
+    Pop
+    LoadString 1
+    LoadUnsigned 1
+    InvokeNative 2
+    Pop
+    LoadTrue
+    JumpIfFalse 14
+    LoadString 3
+    LoadUnsigned 1
+    InvokeNative 2
+    Pop
+    Jump 7
+    LoadString 4
+    LoadUnsigned 1
+    InvokeNative 2
+    Pop
+    LoadNil
+    Return
+@endfunction
+; end - looper
+
 
 ; String constants
-@string 12 Hello, True!
+@string 5 sauce
+@string 14 Hello, Before!
 @string 7 println
+@string 13 Hello, World!
+@string 13 Hello, After!
+@string 12 Hello, True!
 @string 13 Hello, False!

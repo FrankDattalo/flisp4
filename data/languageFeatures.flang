@@ -1,3 +1,9 @@
+module languageFeatures;
+
+import native;
+import apple;
+
+export main;
 
 fn main() {
     var noodle = 2;
@@ -5,12 +11,21 @@ fn main() {
     noodle = 3;
 }
 
+fn looper() {
+    apple:sauce();
+    native:println("Hello, Before!");
+    while true {
+        native:println("Hello, World!");
+    }
+    native:println("Hello, After!");
+}
+
 fn greet(p) {
     if p {
-        system:println("Hello, True!");
+        native:println("Hello, True!");
         return 1;
     } else {
-        system:println("Hello, False!");
+        native:println("Hello, False!");
         return 2;
     }
 }

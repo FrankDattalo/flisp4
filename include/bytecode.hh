@@ -22,27 +22,50 @@ enum class BytecodeType {
     LoadFalse,
     InvokeNative,
     InvokeFunction,
+    InvokeExternal,
     LoadUnsigned,
-    Pop
+    Pop,
+    // Throw,
 };
 
 enum class BytecodeArgType {
     Signed,
     Unsigned,
+    DoubleUnsigned,
+    TripleUnsigned,
     None
 };
 
 static_assert(sizeof(BytecodeType) <= sizeof(std::uint32_t));
 
+struct DoubleUnsigned {
+    std::uint32_t first;
+    std::uint32_t second;
+};
+
+static_assert(sizeof(DoubleUnsigned) == sizeof(std::uint64_t));
+
+struct TripleUnsigned {
+    std::uint16_t first;
+    std::uint16_t second;
+    std::uint32_t third;
+};
+
+static_assert(sizeof(TripleUnsigned) == sizeof(std::uint64_t));
+
 class BytecodeArg {
 private:
     union {
-        std::uint64_t unsigned_int;
-        std::int64_t signed_int;
+        std::uint64_t  unsigned_int;
+        std::int64_t   signed_int;
+        DoubleUnsigned double_unsigned;
+        TripleUnsigned triple_unsigned;
     };
 public:
     explicit BytecodeArg(std::uint64_t _val): unsigned_int{_val} {}
     explicit BytecodeArg(std::int64_t _val): signed_int{_val} {}
+    explicit BytecodeArg(DoubleUnsigned _double_unsigned): double_unsigned{_double_unsigned} {}
+    explicit BytecodeArg(TripleUnsigned _triple_unsigned): triple_unsigned{_triple_unsigned} {}
 
     BytecodeArg() : unsigned_int{0} {}
 
@@ -50,12 +73,20 @@ public:
 
     NOT_MOVEABLE(BytecodeArg);
 
-    std::uint64_t UnsignedInt() const {
+    std::uint64_t GetUnsignedInt() const {
         return unsigned_int;
     }
 
-    std::int64_t SignedInt() const {
+    std::int64_t GetSignedInt() const {
         return signed_int;
+    }
+
+    const DoubleUnsigned GetDoubleUnsigned() const {
+        return double_unsigned;
+    }
+
+    const TripleUnsigned GetTripleUnsigned() const {
+        return triple_unsigned;
     }
 };
 
@@ -102,13 +133,24 @@ public:
 
     std::uint64_t GetUnsignedArg() const {
         checkArg(BytecodeArgType::Unsigned);
-        return this->arg.UnsignedInt();
+        return this->arg.GetUnsignedInt();
     }
 
     std::uint64_t GetSignedArg() const {
         checkArg(BytecodeArgType::Signed);
-        return this->arg.SignedInt();
+        return this->arg.GetSignedInt();
     }
+
+    const DoubleUnsigned GetDoubleUnsignedArg() const {
+        checkArg(BytecodeArgType::DoubleUnsigned);
+        return this->arg.GetDoubleUnsigned();
+    }
+
+    const TripleUnsigned GetTripleUnsignedArg() const {
+        checkArg(BytecodeArgType::TripleUnsigned);
+        return this->arg.GetTripleUnsigned();
+    }
+
 private:
     void checkArg(BytecodeArgType requested) const {
         if (ArgType(this->type) != requested) {
@@ -120,6 +162,13 @@ private:
 public:
     static BytecodeArgType ArgType(BytecodeType type) {
         switch (type) {
+            case BytecodeType::InvokeExternal: { // num args, module name, function name
+                return BytecodeArgType::TripleUnsigned;
+            }
+            case BytecodeType::InvokeNative: // num args, function name
+            case BytecodeType::InvokeFunction: { // num args, function number
+                return BytecodeArgType::DoubleUnsigned;
+            }
             case BytecodeType::LoadInteger: {
                 return BytecodeArgType::Signed;
             }
@@ -128,11 +177,10 @@ public:
             case BytecodeType::LoadLocal:
             case BytecodeType::StoreLocal:
             case BytecodeType::LoadString:
-            case BytecodeType::InvokeNative:
-            case BytecodeType::InvokeFunction:
             case BytecodeType::LoadUnsigned: {
                 return BytecodeArgType::Unsigned;
             }
+            // case BytecodeType::Throw:
             case BytecodeType::LoadTrue:
             case BytecodeType::LoadFalse:
             case BytecodeType::Halt:
@@ -153,6 +201,31 @@ public:
         return ArgType(type) != BytecodeArgType::None;
     }
 
+    std::string ArgToString() const {
+        switch (GetArgType()) {
+            case BytecodeArgType::None: return "";
+            case BytecodeArgType::Signed: return std::to_string(this->arg.GetSignedInt());
+            case BytecodeArgType::Unsigned: return std::to_string(this->arg.GetUnsignedInt());
+            case BytecodeArgType::DoubleUnsigned: {
+                std::stringstream ss;
+                ss << this->arg.GetDoubleUnsigned().first << " " << this->arg.GetDoubleUnsigned().second;
+                return ss.str();
+            }
+            case BytecodeArgType::TripleUnsigned: {
+                std::stringstream ss;
+                ss << this->arg.GetTripleUnsigned().first 
+                    << " " << this->arg.GetTripleUnsigned().second
+                    << " " << this->arg.GetTripleUnsigned().third;
+                return ss.str();
+            }
+            default: {
+                std::string msg{"Unhandled arg type in ArgToString"};
+                msg.append(std::to_string(static_cast<std::uint64_t>(GetArgType())));
+                throw std::runtime_error{msg};
+            }
+        }
+    }
+
     static std::string TypeToString(BytecodeType type) {
         switch (type) {
             case BytecodeType::JumpIfFalse: return "JumpIfFalse";
@@ -163,6 +236,7 @@ public:
             case BytecodeType::LoadString: return "LoadString";
             case BytecodeType::InvokeNative: return "InvokeNative";
             case BytecodeType::InvokeFunction: return "InvokeFunction";
+            case BytecodeType::InvokeExternal: return "InvokeExternal";
             case BytecodeType::LoadUnsigned: return "LoadUnsigned";
             case BytecodeType::LoadTrue: return "LoadTrue";
             case BytecodeType::LoadFalse: return "LoadFalse";
@@ -170,6 +244,7 @@ public:
             case BytecodeType::LoadNil: return "LoadNil";
             case BytecodeType::Return: return "Return";
             case BytecodeType::Pop:  return "Pop";
+            // case BytecodeType::Throw: return "Throw";
             default: {
                 std::string msg{"Unhandled bytecode in TypeToString: "};
                 msg.append(std::to_string(static_cast<uint64_t>(type)));
@@ -192,8 +267,10 @@ public:
         if (str == "LoadFalse") return BytecodeType::LoadFalse;
         if (str == "InvokeNative") return BytecodeType::InvokeNative;
         if (str == "InvokeFunction") return BytecodeType::InvokeFunction;
+        if (str == "InvokeExternal") return BytecodeType::InvokeExternal;
         if (str == "LoadUnsigned") return BytecodeType::LoadUnsigned;
         if (str == "Pop") return BytecodeType::Pop;
+        // if (str == "Throw") return BytecodeType::Throw;
         std::string msg{"Unhandled bytecode in TypeFromString: "};
         msg.append(str);
         throw std::runtime_error{msg};

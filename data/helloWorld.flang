@@ -1,4 +1,4 @@
 
 fn main() {
-    system:println("Hello, World!");
+    native:println("Hello, World!");
 }

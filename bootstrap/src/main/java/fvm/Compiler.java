@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.OutputStream;
+import java.lang.annotation.Native;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
@@ -28,17 +29,24 @@ import fvm.antlr.LanguageParser.AssignStatementContext;
 import fvm.antlr.LanguageParser.BooleanLiteralContext;
 import fvm.antlr.LanguageParser.DefineStatementContext;
 import fvm.antlr.LanguageParser.EmptyReturnStatementContext;
+import fvm.antlr.LanguageParser.ExportContext;
 import fvm.antlr.LanguageParser.ExpressionReturnStatementContext;
 import fvm.antlr.LanguageParser.ExpressionStatementContext;
 import fvm.antlr.LanguageParser.ExternalInvokeExpressionContext;
 import fvm.antlr.LanguageParser.FunctionDefinitionContext;
+import fvm.antlr.LanguageParser.Import_Context;
 import fvm.antlr.LanguageParser.IntegerLiteralContext;
 import fvm.antlr.LanguageParser.InternalInvokeExpressionContext;
+import fvm.antlr.LanguageParser.ModuleContext;
+import fvm.antlr.LanguageParser.NilLiteralContext;
 import fvm.antlr.LanguageParser.OneArmedIfStatementContext;
 import fvm.antlr.LanguageParser.ProgramContext;
 import fvm.antlr.LanguageParser.StringLiteralContext;
+import fvm.antlr.LanguageParser.ThrowStatementContext;
+import fvm.antlr.LanguageParser.TryCatchStatementContext;
 import fvm.antlr.LanguageParser.TwoArmedIfStatementContext;
 import fvm.antlr.LanguageParser.VariableExpressionContext;
+import fvm.antlr.LanguageParser.WhileStatementContext;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -92,10 +100,23 @@ public class Compiler {
             writeLn(out, "@version 1");
             writeLn(out, "");
 
+            writeLn(out, "@module %s", compiledCode.getModuleName());
+            writeLn(out, "");
+
+            for (String imprt : compiledCode.getImports()) {
+                writeLn(out, "@import %s", imprt);
+            }
+            writeLn(out, "");
+
+            for (String export : compiledCode.getExports()) {
+                writeLn(out, "@export %s", export);
+            }
+            writeLn(out, "");
+
             // write out each function
             for (Function fn : compiledCode.getFunctions()) {
                 writeLn(out, "; begin - %s", fn.getName());
-                writeLn(out, "@function");
+                writeLn(out, "@function %s", fn.getName());
                 writeLn(out, "@arity %s", fn.getArity());
                 writeLn(out, "@locals %s", fn.getLocals());
                 for (Bytecode bc : fn.getBytecode()) {
@@ -105,6 +126,8 @@ public class Compiler {
                         writeLn(out, "    " + bc.getType().toString());
                     }
                 }
+                // writeLn(out, "@exceptiontable");
+                // writeLn(out, "@endexceptiontable");
                 writeLn(out, "@endfunction");
                 writeLn(out, "; end - %s\n", fn.getName());
             }
@@ -150,7 +173,9 @@ public class Compiler {
         LoadFalse("LoadFalse", false),
         InvokeNative("InvokeNative", true),
         InvokeFunction("InvokeFunction", true),
+        InvokeExternal("InvokeExternal", true),
         LoadUnsigned("LoadUnsigned", true),
+        Throw("Throw", false),
         Pop("Pop", false);
 
         BytecodeType(String asString, boolean hasArg) {
@@ -210,6 +235,9 @@ public class Compiler {
     private static class CompiledFile {
         @NonNull private List<Function> functions;
         @NonNull private List<String> stringConstants;
+        @NonNull private List<String> imports;
+        @NonNull private List<String> exports;
+        @NonNull private String moduleName;
     }
 
     private static final class ConstantPool<T> {
@@ -248,6 +276,10 @@ public class Compiler {
         @Getter
         private CompiledFile file;
 
+        private String moduleName;
+        private final List<String> imports = new ArrayList<>();
+        private final List<String> exports = new ArrayList<>();
+
         private final ConstantPool<String> strings = new ConstantPool<>();
 
         private long arity;
@@ -260,6 +292,29 @@ public class Compiler {
         private final List<FunctionCall> functionsCallsNeedingResolution = new ArrayList<>();
 
         @Override
+        public void enterModule(ModuleContext ctx) {
+            moduleName = ctx.identifier().getText();
+        }
+
+        @Override
+        public void enterExport(ExportContext ctx) {
+            String exportName = ctx.identifier().getText();
+            if (this.exports.contains(exportName)) {
+                throw new IllegalStateException(String.format("Duplicate export: %s", exportName));
+            }
+            this.exports.add(exportName);
+        }
+
+        @Override
+        public void enterImport_(Import_Context ctx) {
+            String importName = ctx.identifier().getText();
+            if (this.imports.contains(importName)) {
+                throw new IllegalStateException(String.format("Duplicate import: %s", importName));
+            }
+            this.imports.add(importName);
+        }
+
+        @Override
         public void exitProgram(ProgramContext ctx) {
             // validate main fn exists
             if (!this.functions.containsKey("main")) {
@@ -269,6 +324,14 @@ public class Compiler {
             if (main.getArity() != 0) {
                 throw new IllegalStateException("Arity of main function should be 0");
             }
+            
+            // validate exports
+            for (String export : exports) {
+                if (!this.functions.containsKey(export)) {
+                    throw new IllegalStateException("Undefined export: " + export);
+                }
+            }
+
             // serialize functions
             List<Function> serializedFunctions = new ArrayList<>();
             serializedFunctions.add(main);
@@ -309,6 +372,9 @@ public class Compiler {
             this.file = CompiledFile.builder()
                 .functions(serializedFunctions)
                 .stringConstants(this.strings.getList())
+                .imports(imports)
+                .exports(exports)
+                .moduleName(moduleName)
                 .build();
         }
 
@@ -376,6 +442,23 @@ public class Compiler {
         }
 
         @Override
+        public void enterWhileStatement(WhileStatementContext ctx) {
+            long loopStart = nextBytecodePosition();
+            ParseTreeWalker.DEFAULT.walk(this, ctx.expression());
+            long jumpIfFalsePosition = emit(BytecodeType.JumpIfFalse, 0);
+            ParseTreeWalker.DEFAULT.walk(this, ctx.statements());
+            emit(BytecodeType.Jump, loopStart);
+            updateBytecodeArg(jumpIfFalsePosition, nextBytecodePosition());
+            // clear the children so the listener doesn't walk them after we have manually done so
+            ctx.children.clear();
+        }
+
+        @Override
+        public void exitThrowStatement(ThrowStatementContext ctx) {
+            emit(BytecodeType.Throw);
+        }
+
+        @Override
         public void enterOneArmedIfStatement(OneArmedIfStatementContext ctx) {
             ParseTreeWalker.DEFAULT.walk(this, ctx.expression());
             long jumpIfFalsePosition = emit(BytecodeType.JumpIfFalse, 0);
@@ -422,13 +505,19 @@ public class Compiler {
             emit(BytecodeType.LoadUnsigned, args); // num args
             System.out.println(String.format("Compiling external call in %s", functionName));
             String module = ctx.identifier(0).getText();
-            if (!"system".equals(module)) {
-                throw new RuntimeException("Only system module calls are currently supported");
+            if (!imports.contains(module)) {
+                throw new IllegalStateException("No import for module: " + module);
             }
-            String fn = ctx.identifier(1).getText();
-            checkNative(fn, args);
-            long fnNumber = strings.value(fn);
-            emit(BytecodeType.InvokeNative, fnNumber);
+            if (module.equals("native")) {
+                String fn = ctx.identifier(1).getText();
+                checkNative(fn, args);
+                long fnNumber = strings.value(fn);
+                emit(BytecodeType.InvokeNative, fnNumber);
+            } else /* non native code */ {
+                String fn = ctx.identifier(1).getText();
+                long fnNumber = strings.value(fn);
+                emit(BytecodeType.InvokeExternal, fnNumber);
+            }
         }
 
         @Override
@@ -459,6 +548,11 @@ public class Compiler {
             String local = ctx.identifier().getText();
             long localId = lookupLocal(local);
             emit(BytecodeType.LoadLocal, localId);
+        }
+
+        @Override
+        public void enterNilLiteral(NilLiteralContext ctx) {
+            emit(BytecodeType.LoadNil);
         }
 
         @Override
