@@ -48,22 +48,46 @@ public:
                 DEBUGLN("Writing bytecode " << i << "." << j);
 
                 const Bytecode& bc = fn.GetBytecode().at(j);
-                writeU64(output_file, static_cast<std::uint64_t>(bc.GetType()));
 
-                switch (bc.GetArgType()) {
-                    case BytecodeArgType::Unsigned: {
+                std::uint8_t bytecode = 0;
+
+                struct Visitor : public BytecodeVisitor {
+                    std::uint8_t& bytecode;
+                public:
+
+                    Visitor(std::uint8_t& _bytecode)
+                    : bytecode{_bytecode}
+                    {}
+
+                    #define ADD_ENTRY(val) void On##val(const Bytecode&) { bytecode = static_cast<std::uint8_t>(BytecodeType::val); }
+                    PER_BYTECODE_TYPE(ADD_ENTRY)
+                    #undef ADD_ENTRY
+
+                } visitor(bytecode);
+
+                bc.Visit(visitor);
+
+                // bytecode as int
+
+                writeU8(output_file, bytecode);
+
+                struct ArgVisitor : public BytecodeArgTypeVisitor {
+                    const Bytecode& bc;
+                    std::ofstream& output_file;
+                public:
+                    ArgVisitor(const Bytecode& _bc, std::ofstream& _output_file)
+                    : bc{_bc}, output_file{_output_file}
+                    {}
+
+                    void OnUnsigned(BytecodeArgType) override {
                         writeU64(output_file, bc.GetUnsignedArg());
-                        break;
                     }
-                    case BytecodeArgType::None: {
-                        break;
+
+                    void OnNone(BytecodeArgType) override {
+                        // intentionally empty
                     }
-                    default: {
-                        std::string msg{"Unhandled bytecode arg type in Write: "};
-                        msg.append(std::to_string(static_cast<std::uint64_t>(bc.GetArgType())));
-                        throw std::runtime_error{msg};
-                    }
-                }
+
+                } argVisitor(bc, output_file);
             }
         }
 
@@ -88,19 +112,31 @@ public:
     }
 private:
     static void writeConstant(std::ofstream& stream, const Constant& constant) {
-        writeU8(stream, static_cast<std::uint8_t>(constant.Type()));
-        switch (constant.Type()) {
-            case ConstantType::Integer: {
-                break;
+
+        struct Visitor : public ConstantVisitor {
+            std::ofstream& stream;
+
+            Visitor(std::ofstream& _stream): stream{_stream} {}
+
+            void OnInteger(const Constant& constant) override {
+                writeU8(stream, static_cast<std::uint8_t>(ConstantType::Integer));
+                writeU64(stream, constant.GetIntegerConstant());
             }
-            case ConstantType::String: {
-                break;
+
+            void OnString(const Constant& constant) override {
+                writeU8(stream, static_cast<std::uint8_t>(ConstantType::String));
+                writeString(stream, constant.GetStringConstant());
             }
-            default: {
-                std::string msg{"Unhandled constant type in writeConstant: "};
-                msg.append(std::to_string(static_cast<std::uint8_t>(constant.Type())));
-                throw std::runtime_error{msg};
-            }
+        } visitor(stream);
+
+        constant.Visit(visitor);
+    }
+
+    static void writeString(std::ofstream& output_file, const std::string& string) {
+        writeU64(output_file, static_cast<std::uint64_t>(string.size()));
+        for (std::uint64_t j = 0; j < string.size(); j++) {
+            DEBUGLN("Writing string char " << j);
+            writeChar(output_file, string.at(j));
         }
     }
 

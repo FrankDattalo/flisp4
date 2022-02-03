@@ -67,19 +67,30 @@ private:
     static Constant ReadConstant(std::ifstream& stream) {
         std::uint8_t constantTypeByte = ReadU8(stream);
         ConstantType constantType = static_cast<ConstantType>(constantTypeByte);
-        switch (constantType) {
-            case ConstantType::Integer: {
-                return Constant(IntegerConstant{ReadI64(stream)});
+
+        Constant constant(IntegerConstant{0}); // default initialize with some value
+
+        struct Visitor : public ConstantTypeVisitor {
+            Constant& constant;
+            std::ifstream& stream;
+
+            Visitor(Constant& _constant, std::ifstream& _stream)
+            : constant{_constant}, stream{_stream}
+            {}
+
+            void OnInteger(ConstantType) override {
+                constant = Constant(IntegerConstant{ReadI64(stream)});
             }
-            case ConstantType::String: {
-                return Constant(StringConstant{ReadString(stream)});
+
+            void OnString(ConstantType) override {
+                constant = Constant(StringConstant{ReadString(stream)});
             }
-            default: {
-                std::string msg{"Unhandled constant type in ReadConstant: "};
-                msg.append(std::to_string(constantTypeByte));
-                throw std::runtime_error{msg};
-            }
-        }
+
+        } visitor(constant, stream);
+
+        Constant::VisitType(constantType, visitor);
+
+        return constant;
     }
 
     static std::string ReadString(std::ifstream& stream) {
@@ -129,25 +140,34 @@ private:
     }
 
     static Bytecode ReadBytecode(std::ifstream& stream) {
-        std::uint64_t bytecode = ReadU64(stream);
-        BytecodeType casted = static_cast<BytecodeType>(bytecode);
+        std::uint8_t bytecode = ReadU8(stream);
 
-        if (Bytecode::HasArg(casted)) {
-            switch (Bytecode::ArgType(casted)) {
-                case BytecodeArgType::Unsigned: {
-                    std::uint64_t u = ReadU64(stream);
-                    BytecodeArg arg{u};
-                    return Bytecode{casted, arg};
-                }
-            default:
-                std::string msg{"Unhandled bytecode arg type in ReadBytecode: "};
-                msg.append(std::to_string(static_cast<std::uint64_t>(Bytecode::ArgType(casted))));
-                throw std::runtime_error{msg};
+        BytecodeType type = static_cast<BytecodeType>(bytecode);
+        BytecodeArg arg;
+
+        struct Visitor : public BytecodeArgTypeVisitor {
+            BytecodeArg& arg;
+            std::ifstream& stream;
+
+            Visitor(BytecodeArg& _arg, std::ifstream& _stream)
+            : arg{_arg}, stream{_stream}
+            {}
+
+            void OnUnsigned(BytecodeArgType) override {
+                std::uint64_t u = ReadU64(stream);
+                BytecodeArg result{u};
+                arg = result;
             }
-        } else {
-            BytecodeArg arg;
-            return Bytecode{casted, arg}; 
-        }
+
+            void OnNone(BytecodeArgType) override {
+                // intentionally empty
+            }
+
+        } visitor(arg, stream);
+
+        Bytecode::VisitArgType(type, visitor);
+
+        return Bytecode{type, arg};
     }
 };
 

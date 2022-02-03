@@ -46,8 +46,7 @@ void decompile(const std::vector<std::string>& args) {
         for (std::size_t j = 0; j < result.GetFunctions().at(i).GetBytecode().size(); j++) {
             const Bytecode & bc = result.GetFunctions().at(i).GetBytecode().at(j);
             std::cout 
-                << "    - [" << j << "] " << Bytecode::TypeToString(bc.GetType()) <<
-                " " << bc.ArgToString() << std::endl;
+                << "    - [" << j << "] " << bc.GetTypeToString() << " " << bc.ArgToString() << std::endl;
         }
     }
     std::cout << "Constants:\n";

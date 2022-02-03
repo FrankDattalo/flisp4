@@ -69,13 +69,12 @@ private:
 
             const Bytecode& bc = this->frame->GetFunction()->GetBytecode().at(pc);
 
-            DEBUGLN("Loaded bytecode: " << static_cast<std::uint64_t>(bc.GetType()));
+            DEBUGLN("Loaded bytecode: " << bc.GetTypeToString());
 
-            if (bc.GetType() == BytecodeType::Halt) {
+            bool terminate = applyBytecode(bc);
+            if (terminate) {
                 break;
             }
-
-            applyBytecode(bc);
 
             if (IS_DEBUG_ENABLED()) {
                 DEBUGLN("VM AFTER INSTRUCTION");
@@ -85,28 +84,35 @@ private:
         }
     }
 
-    void applyBytecode(const Bytecode& bc) {
-        switch (bc.GetType()) {
-            case BytecodeType::JumpIfFalse: { DEBUGLN("JumpIfFalse"); JumpIfFalse(bc); return; }
-            case BytecodeType::Jump: { DEBUGLN("Jump"); Jump(bc); return; }
-            case BytecodeType::LoadNil: { DEBUGLN("LoadNil"); LoadNil(bc); return; }
-            case BytecodeType::Return: { DEBUGLN("Return"); Return(bc); return; }
-            case BytecodeType::LoadLocal: { DEBUGLN("LoadLocal"); LoadLocal(bc); return; }
-            case BytecodeType::StoreLocal: { DEBUGLN("StoreLocal"); StoreLocal(bc); return; }
-            case BytecodeType::LoadInteger: { DEBUGLN("LoadInteger"); LoadInteger(bc); return; }
-            case BytecodeType::LoadString: { DEBUGLN("LoadString"); LoadString(bc); return; }
-            case BytecodeType::LoadTrue: { DEBUGLN("LoadTrue"); LoadTrue(bc); return; }
-            case BytecodeType::LoadFalse: { DEBUGLN("LoadFalse"); LoadFalse(bc); return; }
-            case BytecodeType::InvokeNative: { DEBUGLN("InvokeNative"); InvokeNative(bc); return; }
-            case BytecodeType::InvokeFunction: { DEBUGLN("InvokeFunction"); InvokeFunction(bc); return; }
-            case BytecodeType::LoadUnsigned: { DEBUGLN("LoadUnsigned"); LoadUnsigned(bc); return; }
-            case BytecodeType::Pop: { DEBUGLN("Pop"); Pop(bc); return; }
-            default: {
-                std::string error_message{"Unknown bytecode in VirtualMachine::loop "};
-                error_message.append(std::to_string(static_cast<std::uint64_t>(bc.GetType())));
-                throw std::runtime_error{error_message};
-            }
-        }
+    bool applyBytecode(const Bytecode& bc) {
+        bool terminate = false;
+
+        struct Visitor : public BytecodeVisitor {
+            VirtualMachine& self;
+            bool& terminate;
+
+            Visitor(VirtualMachine& _self, bool& _terminate)
+            : self{_self}, terminate{_terminate}
+            {}
+
+            void OnJumpIfFalse(const Bytecode& bc) { DEBUGLN("JumpIfFalse"); self.JumpIfFalse(bc); }
+            void OnJump(const Bytecode& bc) { DEBUGLN("Jump"); self.Jump(bc); }
+            void OnLoadNil(const Bytecode& bc) { DEBUGLN("LoadNil"); self.LoadNil(bc); }
+            void OnReturn(const Bytecode& bc) { DEBUGLN("Return"); self.Return(bc); }
+            void OnLoadLocal(const Bytecode& bc) { DEBUGLN("LoadLocal"); self.LoadLocal(bc); }
+            void OnStoreLocal(const Bytecode& bc) { DEBUGLN("StoreLocal"); self.StoreLocal(bc); }
+            void OnLoadInteger(const Bytecode& bc) { DEBUGLN("LoadInteger"); self.LoadInteger(bc); }
+            void OnLoadString(const Bytecode& bc) { DEBUGLN("LoadString"); self.LoadString(bc); }
+            void OnLoadTrue(const Bytecode& bc) { DEBUGLN("LoadTrue"); self.LoadTrue(bc); }
+            void OnLoadFalse(const Bytecode& bc) { DEBUGLN("LoadFalse"); self.LoadFalse(bc); }
+            void OnInvokeNative(const Bytecode& bc) { DEBUGLN("InvokeNative"); self.InvokeNative(bc); }
+            void OnInvokeFunction(const Bytecode& bc) { DEBUGLN("InvokeFunction"); self.InvokeFunction(bc); }
+            void OnLoadUnsigned(const Bytecode& bc) { DEBUGLN("LoadUnsigned"); self.LoadUnsigned(bc); }
+            void OnPop(const Bytecode& bc) { DEBUGLN("Pop"); self.Pop(bc); }
+            void OnHalt(const Bytecode& bc) { DEBUGLN("Halt"); terminate = true; }
+        };
+
+        return terminate;
     }
 
     void LoadLocal(const Bytecode& bc) {
@@ -125,7 +131,7 @@ private:
     }
 
     void LoadString(const Bytecode& bc) {
-        const std::string& str = this->file.GetConstants().at(bc.GetUnsignedArg()).Get<StringConstant>();
+        const std::string& str = this->file.GetConstants().at(bc.GetUnsignedArg()).GetStringConstant();
         Object* result = this->heap.AllocateString(str);
         Object tmp;
         tmp.SetReference(result);
@@ -135,7 +141,7 @@ private:
 
     void InvokeNative(const Bytecode& bc) {
         std::uint64_t num_args = this->frame->Pop().GetUnsignedInteger();
-        const std::string& native_fn_name = this->file.GetConstants().at(bc.GetUnsignedArg()).Get<StringConstant>();
+        const std::string& native_fn_name = this->file.GetConstants().at(bc.GetUnsignedArg()).GetStringConstant();
         const NativeFunction& fn = this->registry.Get(native_fn_name);
         if (fn.GetArity() != num_args) {
             // TODO, don't crash the vm
@@ -203,7 +209,7 @@ private:
 
     void LoadInteger(const Bytecode& bc) {
         Object temp;
-        temp.SetInteger(this->file.GetConstants().at(bc.GetUnsignedArg()).Get<IntegerConstant>());
+        temp.SetInteger(this->file.GetConstants().at(bc.GetUnsignedArg()).GetIntegerConstant());
         this->frame->Push(temp);
         this->frame->AdvanceProgramCounter();
     }
@@ -257,7 +263,7 @@ private:
         for (std::size_t i = 0; i < frame->GetFunction()->GetBytecode().size(); i++) {
             std::cout << "| [" << i << "] ";
             const Bytecode& bc = frame->GetFunction()->GetBytecode().at(i);
-            std::cout << Bytecode::TypeToString(bc.GetType()) << " " << bc.ArgToString();
+            std::cout << bc.GetTypeToString() << " " << bc.ArgToString();
             if (i == frame->GetProgramCounter()) {
                 std::cout << " <~~~~~~~~~~~~~~~~~~";
             }

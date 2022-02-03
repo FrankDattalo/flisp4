@@ -188,10 +188,6 @@ private:
     }
 public:
 
-    bool IsHasArg() const {
-        return HasArg(this->type);
-    }
-
     const std::string GetTypeToString() const {
         return TypeToString(this->type);
     }
@@ -236,10 +232,6 @@ private:
     }
 public:
 
-    static bool HasArg(BytecodeType type) {
-        return ArgType(type) != BytecodeArgType::None;
-    }
-
     std::string ArgToString() const {
 
         std::string str;
@@ -259,6 +251,7 @@ public:
 
         return str;
     }
+
 
     static std::string TypeToString(BytecodeType type) {
         std::string str;
@@ -355,6 +348,12 @@ public:
 #undef DEFINE_VISITOR
 };
 
+class ConstantTypeVisitor {
+public:
+#define DEFINE_VISITOR(val) virtual void On##val(ConstantType type) = 0;
+    PER_CONSTANT_TYPE(DEFINE_VISITOR)
+#undef DEFINE_VISITOR
+};
 
 class Constant {
 private:
@@ -380,6 +379,15 @@ public:
     void Visit(ConstantVisitor& visitor) const {
         #define ADD_VISITOR_CALL(val) case ConstantType::val: { visitor.On##val(*this); return; }
         switch (Type()) {
+            PER_CONSTANT_TYPE(ADD_VISITOR_CALL)
+            default: throw std::runtime_error{"This should never happen"};
+        }
+        #undef ADD_VISITOR_CALL
+    }
+
+    static void VisitType(ConstantType type, ConstantTypeVisitor& visitor) {
+        #define ADD_VISITOR_CALL(val) case ConstantType::val: { visitor.On##val(type); return; }
+        switch (type) {
             PER_CONSTANT_TYPE(ADD_VISITOR_CALL)
             default: throw std::runtime_error{"This should never happen"};
         }
@@ -446,9 +454,5 @@ public:
         return constants;
     }
 };
-
-#undef PER_BYTECODE_TYPE
-#undef PER_BYTECODE_ARG_TYPE
-#undef PER_CONSTANT_TYPE
 
 #endif // BYTECODE_H__
