@@ -161,23 +161,31 @@ private:
         DEBUGLN("First '" << bc << "'");
 
         BytecodeType type = Bytecode::TypeFromString(bc);
+        BytecodeArg arg;
 
-        switch (Bytecode::ArgType(type)) {
-            case BytecodeArgType::None: {
-                BytecodeArg arg;
-                return Bytecode{type, arg};
+        struct Visitor : BytecodeArgTypeVisitor {
+            BytecodeArg& result;
+            const std::vector<std::string>& line;
+
+            Visitor(BytecodeArg& _result, const std::vector<std::string>& _line): result{_result}, line{_line} {}
+
+            void OnNone(BytecodeArgType) override {
+                // already initialize to none
             }
-            case BytecodeArgType::Unsigned: {
+
+            void OnUnsigned(BytecodeArgType) override {
                 std::uint64_t u = std::stoull(line.at(1));
                 BytecodeArg arg{u};
-                return Bytecode{type, arg};
+                result = arg;
             }
-            default: {
-                std::string msg{"Unhandled bytecode arg type in getBytecode: "};
-                msg.append(std::to_string(static_cast<std::uint64_t>(Bytecode::ArgType(type))));
-                throw std::runtime_error{msg};
-            }
-        }
+
+        } visitor (arg, line);
+
+        Bytecode::VisitArgType(type, visitor);
+
+        Bytecode result{type, arg};
+
+        return result;
     }
 };
 

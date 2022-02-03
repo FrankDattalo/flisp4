@@ -9,33 +9,59 @@
 
 #include "memory_semantic_macros.hh"
 
+#define PER_BYTECODE_TYPE(V) \
+    V(Halt) \
+    V(JumpIfFalse) \
+    V(Jump) \
+    V(LoadNil) \
+    V(Return) \
+    V(LoadLocal) \
+    V(StoreLocal) \
+    V(LoadInteger) \
+    V(LoadString) \
+    V(LoadTrue) \
+    V(LoadFalse) \
+    V(InvokeNative) \
+    V(InvokeFunction) \
+    V(InvokeExternal) \
+    V(LoadUnsigned) \
+    V(Pop)
+
 enum class BytecodeType {
-    Halt,
-    JumpIfFalse,
-    Jump,
-    LoadNil,
-    Return,
-    LoadLocal,
-    StoreLocal,
-    LoadInteger,
-    LoadString,
-    LoadTrue,
-    LoadFalse,
-    InvokeNative,
-    InvokeFunction,
-    InvokeExternal,
-    LoadUnsigned,
-    Pop,
-    // Throw,
+#define COMMA(val) val,
+    PER_BYTECODE_TYPE(COMMA)
+#undef COMMA
 };
 
+#define PER_BYTECODE_ARG_TYPE(V) \
+    V(None) \
+    V(Unsigned) 
+
 enum class BytecodeArgType {
-    None,
-    Unsigned,
+#define COMMA(val) val,
+    PER_BYTECODE_ARG_TYPE(COMMA)
+#undef COMMA
+};
+
+class BytecodeArg;
+
+class BytecodeArgVisitor {
+public:
+#define DEFINE_VISITOR(val) virtual void On##val(const BytecodeArg& bcArg) = 0;
+    PER_BYTECODE_ARG_TYPE(DEFINE_VISITOR)
+#undef DEFINE_VISITOR
+};
+
+class BytecodeArgTypeVisitor {
+public:
+#define DEFINE_VISITOR(val) virtual void On##val(BytecodeArgType bcArg) = 0;
+    PER_BYTECODE_ARG_TYPE(DEFINE_VISITOR)
+#undef DEFINE_VISITOR
 };
 
 class BytecodeArg {
 private:
+    // these need to map the delcaration order of the bytecode arg types
     std::variant<std::monostate, std::uint64_t> arg;
 public:
     explicit BytecodeArg(std::uint64_t _arg): arg{_arg} {}
@@ -50,7 +76,43 @@ public:
     template <typename T>
     T Get() const { return std::get<T>(arg); }
 
+    private:
     BytecodeArgType Type() const { return static_cast<BytecodeArgType>(arg.index()); }
+    public:
+
+    void Visit(BytecodeArgVisitor& visitor) const {
+        #define ADD_VISITOR_CALL(val) case BytecodeArgType::val: { visitor.On##val(*this); return; }
+        switch (Type()) {
+            PER_BYTECODE_ARG_TYPE(ADD_VISITOR_CALL)
+            default: throw std::runtime_error{"This should never happen"};
+        }
+        #undef ADD_VISITOR_CALL
+    }
+
+    static void VisitType(BytecodeArgType type, BytecodeArgTypeVisitor& visitor) {
+        #define ADD_VISITOR_CALL(val) case BytecodeArgType::val: { visitor.On##val(type); return; }
+        switch (type) {
+            PER_BYTECODE_ARG_TYPE(ADD_VISITOR_CALL)
+            default: throw std::runtime_error{"This should never happen"};
+        }
+        #undef ADD_VISITOR_CALL
+    }
+};
+
+class Bytecode;
+
+class BytecodeVisitor {
+public:
+#define DEFINE_VISITOR(val) virtual void On##val(const Bytecode& bc) = 0;
+    PER_BYTECODE_TYPE(DEFINE_VISITOR)
+#undef DEFINE_VISITOR
+};
+
+class BytecodeTypeVisitor {
+public:
+#define DEFINE_VISITOR(val) virtual void On##val(BytecodeType bc) = 0;
+    PER_BYTECODE_TYPE(DEFINE_VISITOR)
+#undef DEFINE_VISITOR
 };
 
 class Bytecode {
@@ -61,11 +123,7 @@ public:
     Bytecode(BytecodeType _type, BytecodeArg _arg)
     : type{_type}, arg{_arg}
     {
-        if (ArgType(type) != arg.Type()) {
-            std::string msg{"Bytecode initialized with incorrect arg type for bytecode"};
-            msg.append(TypeToString(this->type));
-            throw std::runtime_error{msg};
-        }
+        checkArgType();
     }
 
     ~Bytecode() = default;
@@ -74,13 +132,61 @@ public:
 
     MOVEABLE(Bytecode);
 
+    void Visit(BytecodeVisitor& visitor) const {
+        #define ADD_VISITOR_CALL(val) case BytecodeType::val: { visitor.On##val(*this); return; }
+        switch (GetType()) {
+            PER_BYTECODE_TYPE(ADD_VISITOR_CALL)
+            default: throw std::runtime_error{"This should never happen"};
+        }
+        #undef ADD_VISITOR_CALL
+    }
+
+    static void VisitType(BytecodeType type, BytecodeTypeVisitor& visitor) {
+        #define ADD_VISITOR_CALL(val) case BytecodeType::val: { visitor.On##val(type); return; }
+        switch (type) {
+            PER_BYTECODE_TYPE(ADD_VISITOR_CALL)
+            default: throw std::runtime_error{"This should never happen"};
+        }
+        #undef ADD_VISITOR_CALL
+    }
+
+    static void VisitArgType(BytecodeType type, BytecodeArgTypeVisitor& visitor) {
+        BytecodeArgType argType = ArgType(type);
+        BytecodeArg::VisitType(argType, visitor);
+    }
+
+private:
     BytecodeType GetType() const {
         return type;
     }
 
-    BytecodeArgType GetArgType() const {
-        return ArgType(this->type);
+    void checkArgType() {
+
+        BytecodeArgType argType;
+
+        struct Visitor : public BytecodeArgVisitor {
+            BytecodeArgType& argType;
+
+            Visitor(BytecodeArgType& _t): argType{_t} {}
+
+            void OnNone(const BytecodeArg&) override {
+                argType = BytecodeArgType::None;
+            }
+            void OnUnsigned(const BytecodeArg&) override {
+                argType = BytecodeArgType::Unsigned;
+            }
+
+        } visitor(argType);
+
+        arg.Visit(visitor);
+
+        if (ArgType(type) != argType) {
+            std::string msg{"Bytecode initialized with incorrect arg type for bytecode"};
+            msg.append(TypeToString(this->type));
+            throw std::runtime_error{msg};
+        }
     }
+public:
 
     bool IsHasArg() const {
         return HasArg(this->type);
@@ -94,98 +200,103 @@ public:
         return this->arg.Get<std::uint64_t>();
     }
 
-    static BytecodeArgType ArgType(BytecodeType type) {
-        switch (type) {
-            case BytecodeType::InvokeExternal:
-            case BytecodeType::InvokeNative: 
-            case BytecodeType::InvokeFunction:
-            case BytecodeType::LoadInteger:
-            case BytecodeType::JumpIfFalse:
-            case BytecodeType::Jump:
-            case BytecodeType::LoadLocal:
-            case BytecodeType::StoreLocal:
-            case BytecodeType::LoadString:
-            case BytecodeType::LoadUnsigned: {
-                return BytecodeArgType::Unsigned;
-            }
-            case BytecodeType::LoadTrue:
-            case BytecodeType::LoadFalse:
-            case BytecodeType::Halt:
-            case BytecodeType::LoadNil:
-            case BytecodeType::Return:
-            case BytecodeType::Pop: {
-                return BytecodeArgType::None;
-            }
-            default: {
-                std::string msg{"Unhandled bytecode in HasArg: "};
-                msg.append(std::to_string(static_cast<uint64_t>(type)));
-                throw std::runtime_error{msg};
-            }
-        }
+private:
+    BytecodeArgType GetArgType() const {
+        return ArgType(this->type);
     }
+
+    static BytecodeArgType ArgType(BytecodeType type) {
+        BytecodeArgType argType;
+
+        struct Visitor : public BytecodeVisitor {
+            BytecodeArgType& argType;
+
+            Visitor(BytecodeArgType& _t): argType{_t} {}
+
+            void OnJumpIfFalse(const Bytecode& bc) override { argType = BytecodeArgType::Unsigned; }
+            void OnJump(const Bytecode& bc) override { argType = BytecodeArgType::Unsigned; }
+            void OnLoadLocal(const Bytecode& bc) override { argType = BytecodeArgType::Unsigned; }
+            void OnStoreLocal(const Bytecode& bc) override { argType = BytecodeArgType::Unsigned; }
+            void OnLoadInteger(const Bytecode& bc) override { argType = BytecodeArgType::Unsigned; }
+            void OnLoadString(const Bytecode& bc) override { argType = BytecodeArgType::Unsigned; }
+            void OnInvokeNative(const Bytecode& bc) override { argType = BytecodeArgType::Unsigned; }
+            void OnInvokeFunction(const Bytecode& bc) override { argType = BytecodeArgType::Unsigned; }
+            void OnInvokeExternal(const Bytecode& bc) override { argType = BytecodeArgType::Unsigned; }
+            void OnLoadUnsigned(const Bytecode& bc) override { argType = BytecodeArgType::Unsigned; }
+            void OnPop(const Bytecode& bc) override { argType = BytecodeArgType::None; }
+            void OnHalt(const Bytecode& bc) override { argType = BytecodeArgType::None; }
+            void OnLoadNil(const Bytecode& bc) override { argType = BytecodeArgType::None; }
+            void OnReturn(const Bytecode& bc) override { argType = BytecodeArgType::None; }
+            void OnLoadTrue(const Bytecode& bc) override { argType = BytecodeArgType::None; }
+            void OnLoadFalse(const Bytecode& bc) override { argType = BytecodeArgType::None; }
+
+        } visitor(argType);
+
+        return argType;
+    }
+public:
 
     static bool HasArg(BytecodeType type) {
         return ArgType(type) != BytecodeArgType::None;
     }
 
     std::string ArgToString() const {
-        switch (GetArgType()) {
-            case BytecodeArgType::None: return "";
-            case BytecodeArgType::Unsigned: return std::to_string(this->GetUnsignedArg());
-            default: {
-                std::string msg{"Unhandled arg type in ArgToString"};
-                msg.append(std::to_string(static_cast<std::uint64_t>(GetArgType())));
-                throw std::runtime_error{msg};
-            }
-        }
+
+        std::string str;
+
+        struct Visitor : public BytecodeArgVisitor {
+            std::string& str;
+            const Bytecode& self;
+
+            Visitor(std::string& _str, const Bytecode& _self): str{_str}, self{_self} {}
+
+            void OnNone(const BytecodeArg& arg) override { str.assign(""); }
+            void OnUnsigned(const BytecodeArg& arg) override { str.assign(std::to_string(self.GetUnsignedArg())); }
+
+        } visitor(str, *this);
+
+        arg.Visit(visitor);
+
+        return str;
     }
 
     static std::string TypeToString(BytecodeType type) {
-        switch (type) {
-            case BytecodeType::JumpIfFalse: return "JumpIfFalse";
-            case BytecodeType::Jump: return "Jump";
-            case BytecodeType::LoadLocal: return "LoadLocal";
-            case BytecodeType::StoreLocal: return "StoreLocal";
-            case BytecodeType::LoadInteger: return "LoadInteger";
-            case BytecodeType::LoadString: return "LoadString";
-            case BytecodeType::InvokeNative: return "InvokeNative";
-            case BytecodeType::InvokeFunction: return "InvokeFunction";
-            case BytecodeType::InvokeExternal: return "InvokeExternal";
-            case BytecodeType::LoadUnsigned: return "LoadUnsigned";
-            case BytecodeType::LoadTrue: return "LoadTrue";
-            case BytecodeType::LoadFalse: return "LoadFalse";
-            case BytecodeType::Halt: return "Halt";
-            case BytecodeType::LoadNil: return "LoadNil";
-            case BytecodeType::Return: return "Return";
-            case BytecodeType::Pop:  return "Pop";
-            // case BytecodeType::Throw: return "Throw";
-            default: {
-                std::string msg{"Unhandled bytecode in TypeToString: "};
-                msg.append(std::to_string(static_cast<uint64_t>(type)));
-                throw std::runtime_error{msg};
-            }
-        }
+        std::string str;
+
+        struct Visitor : public BytecodeTypeVisitor {
+            std::string& str;
+
+            Visitor(std::string& _str): str{_str} {}
+
+            void OnJumpIfFalse(BytecodeType bc) override { str.assign("OnJumpIfFalse"); }
+            void OnJump(BytecodeType bc) override { str.assign("OnJump"); }
+            void OnLoadLocal(BytecodeType bc) override { str.assign("OnLoadLocal"); }
+            void OnStoreLocal(BytecodeType bc) override { str.assign("OnStoreLocal"); }
+            void OnLoadInteger(BytecodeType bc) override { str.assign("OnLoadInteger"); }
+            void OnLoadString(BytecodeType bc) override { str.assign("OnLoadString"); }
+            void OnInvokeNative(BytecodeType bc) override { str.assign("OnInvokeNative"); }
+            void OnInvokeFunction(BytecodeType bc) override { str.assign("OnInvokeFunction"); }
+            void OnInvokeExternal(BytecodeType bc) override { str.assign("OnInvokeExternal"); }
+            void OnLoadUnsigned(BytecodeType bc) override { str.assign("OnLoadUnsigned"); }
+            void OnPop(BytecodeType bc) override { str.assign("OnPop"); }
+            void OnHalt(BytecodeType bc) override { str.assign("OnHalt"); }
+            void OnLoadNil(BytecodeType bc) override { str.assign("OnLoadNil"); }
+            void OnReturn(BytecodeType bc) override { str.assign("OnReturn"); }
+            void OnLoadTrue(BytecodeType bc) override { str.assign("OnLoadTrue"); }
+            void OnLoadFalse(BytecodeType bc) override { str.assign("OnLoadFalse"); }
+
+        } visitor(str);
+
+        VisitType(type, visitor);
+
+        return str;
     }
 
-    static BytecodeType TypeFromString(const std::string & str) {
-        if (str == "Halt") return BytecodeType::Halt;
-        if (str == "JumpIfFalse") return BytecodeType::JumpIfFalse;
-        if (str == "Jump") return BytecodeType::Jump;
-        if (str == "LoadNil") return BytecodeType::LoadNil;
-        if (str == "Return") return BytecodeType::Return;
-        if (str == "LoadLocal") return BytecodeType::LoadLocal;
-        if (str == "StoreLocal") return BytecodeType::StoreLocal;
-        if (str == "LoadInteger") return BytecodeType::LoadInteger;
-        if (str == "LoadString") return BytecodeType::LoadString;
-        if (str == "LoadTrue") return BytecodeType::LoadTrue;
-        if (str == "LoadFalse") return BytecodeType::LoadFalse;
-        if (str == "InvokeNative") return BytecodeType::InvokeNative;
-        if (str == "InvokeFunction") return BytecodeType::InvokeFunction;
-        if (str == "InvokeExternal") return BytecodeType::InvokeExternal;
-        if (str == "LoadUnsigned") return BytecodeType::LoadUnsigned;
-        if (str == "Pop") return BytecodeType::Pop;
-        // if (str == "Throw") return BytecodeType::Throw;
-        std::string msg{"Unhandled bytecode in TypeFromString: "};
+    static BytecodeType TypeFromString(const std::string& str) {
+        #define ADD_ENTRY(val) if (str == "##val") { return BytecodeType::val; }
+        PER_BYTECODE_TYPE(ADD_ENTRY)
+        #undef ADD_ENTRY
+        std::string msg{"Unknown bytecode type in TypeFromString: "};
         msg.append(str);
         throw std::runtime_error{msg};
     }
@@ -238,10 +349,25 @@ public:
 using IntegerConstant = TaggedConstant<std::int64_t>;
 using StringConstant = TaggedConstant<std::string>;
 
+#define PER_CONSTANT_TYPE(V) \
+    V(Integer) \
+    V(String) 
+
 enum class ConstantType {
-    Integer,
-    String,
+#define COMMA(val) val,
+    PER_CONSTANT_TYPE(COMMA)
+#undef COMMA
 };
+
+class Constant;
+
+class ConstantVisitor {
+public:
+#define DEFINE_VISITOR(val) virtual void On##val(const Constant& constant) = 0;
+    PER_CONSTANT_TYPE(DEFINE_VISITOR)
+#undef DEFINE_VISITOR
+};
+
 
 class Constant {
 private:
@@ -255,28 +381,48 @@ public:
     NOT_COPYABLE(Constant);
     MOVEABLE(Constant);
 
+private:
     template<typename T>
     decltype(auto) Get() const { return std::get<T>(value).Get(); }
+public:
 
+    std::int64_t GetIntegerConstant() const { return Get<IntegerConstant>(); }
+
+    const std::string& GetStringConstant() const { return Get<StringConstant>(); }
+
+    void Visit(ConstantVisitor& visitor) const {
+        #define ADD_VISITOR_CALL(val) case ConstantType::val: { visitor.On##val(*this); return; }
+        switch (Type()) {
+            PER_CONSTANT_TYPE(ADD_VISITOR_CALL)
+            default: throw std::runtime_error{"This should never happen"};
+        }
+        #undef ADD_VISITOR_CALL
+    }
+
+private:
     ConstantType Type() const { return static_cast<ConstantType>(value.index()); }
+public:
 
     std::string ToString() const {
         std::stringstream stream;
-        switch (Type()) {
-            case ConstantType::Integer: {
-                stream << "IntegerConstant{" << Get<IntegerConstant>() << "}";
-                break;
+
+        struct Visitor : public ConstantVisitor {
+            std::stringstream& stream;
+
+            Visitor(std::stringstream& _stream): stream{_stream} {}
+
+            void OnInteger(const Constant& constant) override {
+                stream << "IntegerConstant{" << constant.GetIntegerConstant() << "}";
             }
-            case ConstantType::String: {
-                stream << "StringConstant{" << Get<StringConstant>() << "}";
-                break;
+
+            void OnString(const Constant& constant) override {
+                stream << "StringConstant{" << constant.GetStringConstant() << "}";
             }
-            default: {
-                std::string msg{"Unhandled constant type in ToString: "};
-                msg.append(std::to_string(static_cast<std::uint8_t>(Type())));
-                throw std::runtime_error{msg};
-            }
-        }
+
+        } visitor(stream);
+
+        Visit(visitor);
+
         return stream.str();
     }
 };
@@ -313,5 +459,9 @@ public:
         return constants;
     }
 };
+
+#undef PER_BYTECODE_TYPE
+#undef PER_BYTECODE_ARG_TYPE
+#undef PER_CONSTANT_TYPE
 
 #endif // BYTECODE_H__
