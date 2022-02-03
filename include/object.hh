@@ -22,6 +22,10 @@ enum class ObjectType {
     FunctionReference,
 };
 
+class HeapObject {
+
+};
+
 class Object {
 private:
     ObjectType type;
@@ -156,6 +160,7 @@ public:
     }
 
     std::string ToDebugString() {
+        // TODO: remove this
         switch (this->type) {
             case ObjectType::Nil: {
                 return "nil";
