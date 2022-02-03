@@ -125,7 +125,7 @@ private:
     }
 
     void LoadString(const Bytecode& bc) {
-        const std::string& str = this->file.GetStringConstants().at(bc.GetUnsignedArg());
+        const std::string& str = this->file.GetConstants().at(bc.GetUnsignedArg()).Get<StringConstant>();
         Object* result = this->heap.AllocateString(str);
         Object tmp;
         tmp.SetReference(result);
@@ -135,7 +135,7 @@ private:
 
     void InvokeNative(const Bytecode& bc) {
         std::uint64_t num_args = this->frame->Pop().GetUnsignedInteger();
-        const std::string& native_fn_name = this->file.GetStringConstants().at(bc.GetUnsignedArg());
+        const std::string& native_fn_name = this->file.GetConstants().at(bc.GetUnsignedArg()).Get<StringConstant>();
         const NativeFunction& fn = this->registry.Get(native_fn_name);
         if (fn.GetArity() != num_args) {
             // TODO, don't crash the vm
@@ -203,7 +203,7 @@ private:
 
     void LoadInteger(const Bytecode& bc) {
         Object temp;
-        temp.SetInteger(bc.GetSignedArg());
+        temp.SetInteger(this->file.GetConstants().at(bc.GetUnsignedArg()).Get<IntegerConstant>());
         this->frame->Push(temp);
         this->frame->AdvanceProgramCounter();
     }

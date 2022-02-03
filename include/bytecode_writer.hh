@@ -51,10 +51,6 @@ public:
                 writeU64(output_file, static_cast<std::uint64_t>(bc.GetType()));
 
                 switch (bc.GetArgType()) {
-                    case BytecodeArgType::Signed: {
-                        writeI64(output_file, bc.GetSignedArg());
-                        break;
-                    }
                     case BytecodeArgType::Unsigned: {
                         writeU64(output_file, bc.GetUnsignedArg());
                         break;
@@ -71,17 +67,18 @@ public:
             }
         }
 
-        DEBUGLN("Writing string constants")
-        std::uint64_t string_count = file.GetStringConstants().size();
-        writeU64(output_file, string_count);
-        for (std::uint64_t i = 0; i < string_count; i++) {
-            DEBUGLN("Writing string " << i);
-            const std::string& string = file.GetStringConstants().at(i);
-            writeU64(output_file, static_cast<std::uint64_t>(string.size()));
-            for (std::uint64_t j = 0; j < string.size(); j++) {
-                DEBUGLN("Writing string char " << i << "." << j);
-                writeChar(output_file, string.at(j));
-            }
+        DEBUGLN("Writing constants")
+        std::uint64_t constant_count = file.GetConstants().size();
+        writeU64(output_file, constant_count);
+        for (std::uint64_t i = 0; i < constant_count; i++) {
+            DEBUGLN("Writing constant " << i);
+            const Constant& constant = file.GetConstants().at(i);
+            writeConstant(output_file, constant);
+            // writeU64(output_file, static_cast<std::uint64_t>(string.size()));
+            // for (std::uint64_t j = 0; j < string.size(); j++) {
+            //     DEBUGLN("Writing string char " << i << "." << j);
+            //     writeChar(output_file, string.at(j));
+            // }
         }
 
         output_file.flush();
@@ -90,6 +87,23 @@ public:
         DEBUGLN("Written");
     }
 private:
+    static void writeConstant(std::ofstream& stream, const Constant& constant) {
+        writeU8(stream, static_cast<std::uint8_t>(constant.Type()));
+        switch (constant.Type()) {
+            case ConstantType::Integer: {
+                break;
+            }
+            case ConstantType::String: {
+                break;
+            }
+            default: {
+                std::string msg{"Unhandled constant type in writeConstant: "};
+                msg.append(std::to_string(static_cast<std::uint8_t>(constant.Type())));
+                throw std::runtime_error{msg};
+            }
+        }
+    }
+
     static void writeU64(std::ofstream& stream, std::uint64_t val) {
         stream.write((const char*) &val, sizeof(std::uint64_t));
     }
@@ -100,6 +114,10 @@ private:
 
     static void writeChar(std::ofstream& stream, char val) {
         stream.write(&val, 1);
+    }
+
+    static void writeU8(std::ofstream& stream, std::uint8_t val) {
+        stream.write((const char*) &val, sizeof(std::uint8_t));
     }
 };
 

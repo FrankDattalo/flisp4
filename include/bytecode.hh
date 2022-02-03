@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 #include <string_view>
+#include <variant>
 
 #include "memory_semantic_macros.hh"
 
@@ -29,84 +30,42 @@ enum class BytecodeType {
 };
 
 enum class BytecodeArgType {
-    Signed,
+    None,
     Unsigned,
-    DoubleUnsigned,
-    TripleUnsigned,
-    None
 };
-
-static_assert(sizeof(BytecodeType) <= sizeof(std::uint32_t));
-
-struct DoubleUnsigned {
-    std::uint32_t first;
-    std::uint32_t second;
-};
-
-static_assert(sizeof(DoubleUnsigned) == sizeof(std::uint64_t));
-
-struct TripleUnsigned {
-    std::uint16_t first;
-    std::uint16_t second;
-    std::uint32_t third;
-};
-
-static_assert(sizeof(TripleUnsigned) == sizeof(std::uint64_t));
 
 class BytecodeArg {
 private:
-    union {
-        std::uint64_t  unsigned_int;
-        std::int64_t   signed_int;
-        DoubleUnsigned double_unsigned;
-        TripleUnsigned triple_unsigned;
-    };
+    std::variant<std::monostate, std::uint64_t> arg;
 public:
-    explicit BytecodeArg(std::uint64_t _val): unsigned_int{_val} {}
-    explicit BytecodeArg(std::int64_t _val): signed_int{_val} {}
-    explicit BytecodeArg(DoubleUnsigned _double_unsigned): double_unsigned{_double_unsigned} {}
-    explicit BytecodeArg(TripleUnsigned _triple_unsigned): triple_unsigned{_triple_unsigned} {}
+    explicit BytecodeArg(std::uint64_t _arg): arg{_arg} {}
 
-    BytecodeArg() : unsigned_int{0} {}
+    BytecodeArg() {}
+
+    ~BytecodeArg() = default;
 
     COPYABLE(BytecodeArg);
-
     NOT_MOVEABLE(BytecodeArg);
 
-    std::uint64_t GetUnsignedInt() const {
-        return unsigned_int;
-    }
+    template <typename T>
+    T Get() const { return std::get<T>(arg); }
 
-    std::int64_t GetSignedInt() const {
-        return signed_int;
-    }
-
-    const DoubleUnsigned GetDoubleUnsigned() const {
-        return double_unsigned;
-    }
-
-    const TripleUnsigned GetTripleUnsigned() const {
-        return triple_unsigned;
-    }
+    BytecodeArgType Type() const { return static_cast<BytecodeArgType>(arg.index()); }
 };
-
-static_assert(sizeof(BytecodeArg) == sizeof(std::uint64_t));
 
 class Bytecode {
 private:
     BytecodeType type;
     BytecodeArg arg;
 public:
-    Bytecode(BytecodeType _type, BytecodeArgType _arg_type, BytecodeArg _arg)
+    Bytecode(BytecodeType _type, BytecodeArg _arg)
     : type{_type}, arg{_arg}
     {
-        checkArg(_arg_type);
-    }
-
-    Bytecode(BytecodeType _type)
-    : type{_type}
-    {
-        checkArg(BytecodeArgType::None);
+        if (ArgType(type) != arg.Type()) {
+            std::string msg{"Bytecode initialized with incorrect arg type for bytecode"};
+            msg.append(TypeToString(this->type));
+            throw std::runtime_error{msg};
+        }
     }
 
     ~Bytecode() = default;
@@ -132,46 +91,15 @@ public:
     }
 
     std::uint64_t GetUnsignedArg() const {
-        checkArg(BytecodeArgType::Unsigned);
-        return this->arg.GetUnsignedInt();
+        return this->arg.Get<std::uint64_t>();
     }
 
-    std::uint64_t GetSignedArg() const {
-        checkArg(BytecodeArgType::Signed);
-        return this->arg.GetSignedInt();
-    }
-
-    const DoubleUnsigned GetDoubleUnsignedArg() const {
-        checkArg(BytecodeArgType::DoubleUnsigned);
-        return this->arg.GetDoubleUnsigned();
-    }
-
-    const TripleUnsigned GetTripleUnsignedArg() const {
-        checkArg(BytecodeArgType::TripleUnsigned);
-        return this->arg.GetTripleUnsigned();
-    }
-
-private:
-    void checkArg(BytecodeArgType requested) const {
-        if (ArgType(this->type) != requested) {
-            std::string msg{"GetXXXArg called on an invalid bytecode: "};
-            msg.append(TypeToString(this->type));
-            throw std::runtime_error{msg};
-        }
-    }
-public:
     static BytecodeArgType ArgType(BytecodeType type) {
         switch (type) {
-            case BytecodeType::InvokeExternal: { // num args, module name, function name
-                return BytecodeArgType::TripleUnsigned;
-            }
-            case BytecodeType::InvokeNative: // num args, function name
-            case BytecodeType::InvokeFunction: { // num args, function number
-                return BytecodeArgType::DoubleUnsigned;
-            }
-            case BytecodeType::LoadInteger: {
-                return BytecodeArgType::Signed;
-            }
+            case BytecodeType::InvokeExternal:
+            case BytecodeType::InvokeNative: 
+            case BytecodeType::InvokeFunction:
+            case BytecodeType::LoadInteger:
             case BytecodeType::JumpIfFalse:
             case BytecodeType::Jump:
             case BytecodeType::LoadLocal:
@@ -180,7 +108,6 @@ public:
             case BytecodeType::LoadUnsigned: {
                 return BytecodeArgType::Unsigned;
             }
-            // case BytecodeType::Throw:
             case BytecodeType::LoadTrue:
             case BytecodeType::LoadFalse:
             case BytecodeType::Halt:
@@ -204,20 +131,7 @@ public:
     std::string ArgToString() const {
         switch (GetArgType()) {
             case BytecodeArgType::None: return "";
-            case BytecodeArgType::Signed: return std::to_string(this->arg.GetSignedInt());
-            case BytecodeArgType::Unsigned: return std::to_string(this->arg.GetUnsignedInt());
-            case BytecodeArgType::DoubleUnsigned: {
-                std::stringstream ss;
-                ss << this->arg.GetDoubleUnsigned().first << " " << this->arg.GetDoubleUnsigned().second;
-                return ss.str();
-            }
-            case BytecodeArgType::TripleUnsigned: {
-                std::stringstream ss;
-                ss << this->arg.GetTripleUnsigned().first 
-                    << " " << this->arg.GetTripleUnsigned().second
-                    << " " << this->arg.GetTripleUnsigned().third;
-                return ss.str();
-            }
+            case BytecodeArgType::Unsigned: return std::to_string(this->GetUnsignedArg());
             default: {
                 std::string msg{"Unhandled arg type in ArgToString"};
                 msg.append(std::to_string(static_cast<std::uint64_t>(GetArgType())));
@@ -306,18 +220,79 @@ public:
     }
 };
 
+template <typename T>
+class TaggedConstant {
+private:
+    T data;
+public:
+    explicit TaggedConstant(T _data): data{_data} {}
+
+    ~TaggedConstant() = default;
+
+    NOT_COPYABLE(TaggedConstant);
+    MOVEABLE(TaggedConstant);
+
+    constexpr const T& Get() const { return data; };
+};
+
+using IntegerConstant = TaggedConstant<std::int64_t>;
+using StringConstant = TaggedConstant<std::string>;
+
+enum class ConstantType {
+    Integer,
+    String,
+};
+
+class Constant {
+private:
+    std::variant<IntegerConstant, StringConstant> value;
+public:
+    template<typename T>
+    explicit Constant(T _value): value{std::move(_value)} {}
+
+    ~Constant() = default;
+
+    NOT_COPYABLE(Constant);
+    MOVEABLE(Constant);
+
+    template<typename T>
+    decltype(auto) Get() const { return std::get<T>(value).Get(); }
+
+    ConstantType Type() const { return static_cast<ConstantType>(value.index()); }
+
+    std::string ToString() const {
+        std::stringstream stream;
+        switch (Type()) {
+            case ConstantType::Integer: {
+                stream << "IntegerConstant{" << Get<IntegerConstant>() << "}";
+                break;
+            }
+            case ConstantType::String: {
+                stream << "StringConstant{" << Get<StringConstant>() << "}";
+                break;
+            }
+            default: {
+                std::string msg{"Unhandled constant type in ToString: "};
+                msg.append(std::to_string(static_cast<std::uint8_t>(Type())));
+                throw std::runtime_error{msg};
+            }
+        }
+        return stream.str();
+    }
+};
+
 class File {
 private:
     std::uint64_t version;
     std::vector<Function> functions;
-    std::vector<std::string> string_constants;
+    std::vector<Constant> constants;
 public:
     File(std::uint64_t _version,
          std::vector<Function> _functions, 
-         std::vector<std::string> _string_constants) 
+         std::vector<Constant> _constants) 
     : version{_version}
     , functions{std::move(_functions)}
-    , string_constants{std::move(_string_constants)}
+    , constants{std::move(_constants)}
     {}
 
     ~File() = default;
@@ -334,8 +309,8 @@ public:
         return functions;
     }
 
-    const std::vector<std::string>& GetStringConstants() const {
-        return string_constants;
+    const std::vector<Constant>& GetConstants() const {
+        return constants;
     }
 };
 

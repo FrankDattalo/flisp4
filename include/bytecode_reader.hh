@@ -46,12 +46,12 @@ public:
         }
 
         // read string constants
-        std::uint64_t string_constant_count = ReadU64(input_file);
-        DEBUGLN("Reading string constants");
-        std::vector<std::string> string_constants;
-        string_constants.reserve(string_constant_count);
-        for (std::uint64_t i = 0; i < string_constant_count; i++) {
-            string_constants.push_back(ReadString(input_file));
+        std::uint64_t constant_count = ReadU64(input_file);
+        DEBUGLN("Reading constants");
+        std::vector<Constant> constants;
+        constants.reserve(constant_count);
+        for (std::uint64_t i = 0; i < constant_count; i++) {
+            constants.push_back(ReadConstant(input_file));
         }
 
         DEBUGLN("Done reading compiled file");
@@ -59,11 +59,29 @@ public:
         return File{
             version,
             std::move(fns),
-            std::move(string_constants)
+            std::move(constants)
         };
     }
 
 private:
+    static Constant ReadConstant(std::ifstream& stream) {
+        std::uint8_t constantTypeByte = ReadU8(stream);
+        ConstantType constantType = static_cast<ConstantType>(constantTypeByte);
+        switch (constantType) {
+            case ConstantType::Integer: {
+                return Constant(IntegerConstant{ReadI64(stream)});
+            }
+            case ConstantType::String: {
+                return Constant(StringConstant{ReadString(stream)});
+            }
+            default: {
+                std::string msg{"Unhandled constant type in ReadConstant: "};
+                msg.append(std::to_string(constantTypeByte));
+                throw std::runtime_error{msg};
+            }
+        }
+    }
+
     static std::string ReadString(std::ifstream& stream) {
         std::uint64_t length = ReadU64(stream);
         //DEBUGLN("Reading string of " << length << " characters");
@@ -76,6 +94,12 @@ private:
 
     static char ReadChar(std::ifstream& stream) {
         char data = '\0';
+        stream.read(reinterpret_cast<char*>(&data), sizeof(data));
+        return data;
+    }
+
+    static char ReadU8(std::ifstream& stream) {
+        std::uint8_t data = 0;
         stream.read(reinterpret_cast<char*>(&data), sizeof(data));
         return data;
     }
@@ -110,23 +134,19 @@ private:
 
         if (Bytecode::HasArg(casted)) {
             switch (Bytecode::ArgType(casted)) {
-            case BytecodeArgType::Signed: {
-                std::int64_t i = ReadI64(stream);
-                BytecodeArg arg{i};
-                return Bytecode{casted, BytecodeArgType::Signed, arg};
-            }
-            case BytecodeArgType::Unsigned: {
-                std::uint64_t u = ReadU64(stream);
-                BytecodeArg arg{u};
-                return Bytecode{casted, BytecodeArgType::Unsigned, arg};
-            }
+                case BytecodeArgType::Unsigned: {
+                    std::uint64_t u = ReadU64(stream);
+                    BytecodeArg arg{u};
+                    return Bytecode{casted, arg};
+                }
             default:
                 std::string msg{"Unhandled bytecode arg type in ReadBytecode: "};
                 msg.append(std::to_string(static_cast<std::uint64_t>(Bytecode::ArgType(casted))));
                 throw std::runtime_error{msg};
             }
         } else {
-            return Bytecode{casted};
+            BytecodeArg arg;
+            return Bytecode{casted, arg}; 
         }
     }
 };

@@ -50,9 +50,9 @@ void decompile(const std::vector<std::string>& args) {
                 " " << bc.ArgToString() << std::endl;
         }
     }
-    std::cout << "Strings:\n";
-    for (std::size_t i = 0; i < result.GetStringConstants().size(); i++) {
-        std::cout << "- String[" << i << "] = " << result.GetStringConstants().at(i) << "\n";
+    std::cout << "Constants:\n";
+    for (std::size_t i = 0; i < result.GetConstants().size(); i++) {
+        std::cout << "- String[" << i << "] = " << result.GetConstants().at(i).ToString() << "\n";
     }
 }
 

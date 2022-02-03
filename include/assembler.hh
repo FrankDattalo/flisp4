@@ -42,7 +42,7 @@ public:
         // wip file
         std::uint64_t version;
         std::vector<Function> functions;
-        std::vector<std::string> string_constants;;
+        std::vector<Constant> constants;
 
         // wip function
         std::uint64_t arity;
@@ -109,7 +109,8 @@ public:
                     str.push_back(c);
                 }
                 DEBUGLN("Final string from '" << line << "' is '" << str << "'");
-                string_constants.push_back(std::move(str));
+                //string_constants.push_back(std::move(str));
+                // TODO: reading
             } else /* it's a bytecode */ {
                 Bytecode bc = getBytecode(split);
                 bytecode.push_back(bc);
@@ -122,7 +123,7 @@ public:
         File file{
             std::move(version), 
             std::move(functions), 
-            std::move(string_constants)};
+            std::move(constants)};
 
         BytecodeWriter::Write(file, output_path);
 
@@ -163,17 +164,13 @@ private:
 
         switch (Bytecode::ArgType(type)) {
             case BytecodeArgType::None: {
-                return Bytecode{type};
-            }
-            case BytecodeArgType::Signed: {
-                std::int64_t i = std::stoll(line.at(1));
-                BytecodeArg arg{i};
-                return Bytecode{type, BytecodeArgType::Signed, arg};
+                BytecodeArg arg;
+                return Bytecode{type, arg};
             }
             case BytecodeArgType::Unsigned: {
                 std::uint64_t u = std::stoull(line.at(1));
                 BytecodeArg arg{u};
-                return Bytecode{type, BytecodeArgType::Unsigned, arg};
+                return Bytecode{type, arg};
             }
             default: {
                 std::string msg{"Unhandled bytecode arg type in getBytecode: "};
