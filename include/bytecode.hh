@@ -268,22 +268,9 @@ public:
 
             Visitor(std::string& _str): str{_str} {}
 
-            void OnJumpIfFalse(BytecodeType bc) override { str.assign("OnJumpIfFalse"); }
-            void OnJump(BytecodeType bc) override { str.assign("OnJump"); }
-            void OnLoadLocal(BytecodeType bc) override { str.assign("OnLoadLocal"); }
-            void OnStoreLocal(BytecodeType bc) override { str.assign("OnStoreLocal"); }
-            void OnLoadInteger(BytecodeType bc) override { str.assign("OnLoadInteger"); }
-            void OnLoadString(BytecodeType bc) override { str.assign("OnLoadString"); }
-            void OnInvokeNative(BytecodeType bc) override { str.assign("OnInvokeNative"); }
-            void OnInvokeFunction(BytecodeType bc) override { str.assign("OnInvokeFunction"); }
-            void OnInvokeExternal(BytecodeType bc) override { str.assign("OnInvokeExternal"); }
-            void OnLoadUnsigned(BytecodeType bc) override { str.assign("OnLoadUnsigned"); }
-            void OnPop(BytecodeType bc) override { str.assign("OnPop"); }
-            void OnHalt(BytecodeType bc) override { str.assign("OnHalt"); }
-            void OnLoadNil(BytecodeType bc) override { str.assign("OnLoadNil"); }
-            void OnReturn(BytecodeType bc) override { str.assign("OnReturn"); }
-            void OnLoadTrue(BytecodeType bc) override { str.assign("OnLoadTrue"); }
-            void OnLoadFalse(BytecodeType bc) override { str.assign("OnLoadFalse"); }
+            #define ADD_ENTRY(val) void On##val(BytecodeType bc) override { str.assign("##val"); }
+            PER_BYTECODE_TYPE(ADD_ENTRY)
+            #undef ADD_ENTRY
 
         } visitor(str);
 
