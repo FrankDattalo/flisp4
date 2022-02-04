@@ -52,6 +52,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.Getter;
 import lombok.NonNull;
+import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import lombok.SneakyThrows;
 import lombok.Value;
@@ -132,12 +133,10 @@ public class Compiler {
                 writeLn(out, "; end - %s\n", fn.getName());
             }
             writeLn(out, "");
-            writeLn(out, "; String constants");
+            writeLn(out, "; constants");
             // write out each string constant
-            for (String str : compiledCode.getStringConstants()) {
-                write(out, "@string ");
-                write(out, "%d ", str.length());
-                write(out, str);
+            for (Constant<?> constant : compiledCode.getConstants()) {
+                write(out, constant.asAssemblyString());
                 writeLn(out, "");
             }
         }
@@ -171,10 +170,7 @@ public class Compiler {
         LoadString("LoadString", true),
         LoadTrue("LoadTrue", false),
         LoadFalse("LoadFalse", false),
-        InvokeNative("InvokeNative", true),
-        InvokeFunction("InvokeFunction", true),
-        InvokeExternal("InvokeExternal", true),
-        LoadUnsigned("LoadUnsigned", true),
+        Invoke("Invoke", true),
         Throw("Throw", false),
         Pop("Pop", false);
 
@@ -234,17 +230,17 @@ public class Compiler {
     @AllArgsConstructor
     private static class CompiledFile {
         @NonNull private List<Function> functions;
-        @NonNull private List<String> stringConstants;
+        @NonNull private List<Constant<?>> constants;
         @NonNull private List<String> imports;
         @NonNull private List<String> exports;
         @NonNull private String moduleName;
     }
 
-    private static final class ConstantPool<T> {
-        private Map<T, Long> pool = new HashMap<>();
-        @Getter private List<T> list = new ArrayList<>();
+    private static final class ConstantPool {
+        private Map<Constant<?>, Long> pool = new HashMap<>();
+        @Getter private List<Constant<?>> list = new ArrayList<>();
 
-        public Long value(T t) {
+        public Long value(Constant<?> t) {
             if (pool.containsKey(t)) {
                 return pool.get(t);
             } else {
@@ -253,6 +249,74 @@ public class Compiler {
                 list.add(t);
                 return result;
             }
+        }
+    }
+
+    @RequiredArgsConstructor
+    private static abstract class Constant<T> {
+        @NonNull protected final T data;
+
+        abstract public String asAssemblyString();
+
+        @Override
+        public int hashCode() {
+            return data.hashCode();
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (!(obj instanceof Constant)) {
+                return false;
+            }
+            Constant<?> other = (Constant<?>) obj;
+            return data.equals(other.data);
+        }
+    }
+
+    @Data
+    @Builder
+    private static final class Invocation {
+        @NonNull private final Long moduleNameIndex;
+        @NonNull private final Long methodNameIndex;
+        @NonNull private final Long parameterCount;
+    }
+
+    private static final class InvocationConstant extends Constant<Invocation> {
+
+        public InvocationConstant(@NonNull Invocation data) {
+            super(data);
+        }
+
+        @Override
+        public String asAssemblyString() {
+            return String.format(
+                "@invocation %s %s %s", 
+                data.getModuleNameIndex(), 
+                data.getMethodNameIndex(), 
+                data.getParameterCount());
+        }
+
+    }
+
+    private static final class StringConstant extends Constant<String> {
+        public StringConstant(@NonNull String data) {
+            super(data);
+        }
+
+        @Override
+        public String asAssemblyString() {
+            return String.format("@string %s %s", data.length(), data);
+        }
+    }
+
+    private static final class IntegerConstant extends Constant<Long> {
+        public IntegerConstant(@NonNull Long data) {
+            super(data);
+        }
+
+        @Override
+        public String asAssemblyString() {
+            return String.format("@integer %s", data);
         }
     }
 
@@ -280,7 +344,7 @@ public class Compiler {
         private final List<String> imports = new ArrayList<>();
         private final List<String> exports = new ArrayList<>();
 
-        private final ConstantPool<String> strings = new ConstantPool<>();
+        private final ConstantPool constants = new ConstantPool();
 
         private long arity;
         private String functionName;
@@ -294,6 +358,9 @@ public class Compiler {
         @Override
         public void enterModule(ModuleContext ctx) {
             moduleName = ctx.identifier().getText();
+            if ("self".equals(moduleName)) {
+                throw new IllegalStateException("self is a reserved module name");
+            }
         }
 
         @Override
@@ -371,7 +438,7 @@ public class Compiler {
             // copy over integer and strings
             this.file = CompiledFile.builder()
                 .functions(serializedFunctions)
-                .stringConstants(this.strings.getList())
+                .constants(this.constants.getList())
                 .imports(imports)
                 .exports(exports)
                 .moduleName(moduleName)
@@ -484,40 +551,38 @@ public class Compiler {
         @Override
         public void exitInternalInvokeExpression(InternalInvokeExpressionContext ctx) {
             long args = ctx.functionArguments().expression().size();
-            emit(BytecodeType.LoadUnsigned, args); // num args
             System.out.println(String.format("Compiling internal call in %s", functionName));
             // internal call
             String fnName = ctx.identifier().getText();
-            long position = emit(BytecodeType.InvokeFunction, Integer.MAX_VALUE); // will update later
-            this.functionsCallsNeedingResolution.add(
-                FunctionCall.builder()
-                    .calleeName(fnName)
-                    .callerArgs(args)
-                    .callerName(this.functionName)
-                    .callerBytecodeNumber(position)
-                    .build()
-            );
+
+            long index = constants.value(new InvocationConstant(Invocation.builder()
+                .moduleNameIndex(constants.value(new StringConstant("self")))
+                .methodNameIndex(constants.value(new StringConstant(fnName)))
+                .parameterCount(args)
+                .build()));
+
+            emit(BytecodeType.Invoke, index);
         }
 
         @Override
         public void exitExternalInvokeExpression(ExternalInvokeExpressionContext ctx) {
             long args = ctx.functionArguments().expression().size();
-            emit(BytecodeType.LoadUnsigned, args); // num args
             System.out.println(String.format("Compiling external call in %s", functionName));
             String module = ctx.identifier(0).getText();
+
             if (!imports.contains(module)) {
                 throw new IllegalStateException("No import for module: " + module);
             }
-            if (module.equals("native")) {
-                String fn = ctx.identifier(1).getText();
-                checkNative(fn, args);
-                long fnNumber = strings.value(fn);
-                emit(BytecodeType.InvokeNative, fnNumber);
-            } else /* non native code */ {
-                String fn = ctx.identifier(1).getText();
-                long fnNumber = strings.value(fn);
-                emit(BytecodeType.InvokeExternal, fnNumber);
-            }
+
+            String fn = ctx.identifier(1).getText();
+
+            long index = constants.value(new InvocationConstant(Invocation.builder()
+                .moduleNameIndex(constants.value(new StringConstant(module)))
+                .methodNameIndex(constants.value(new StringConstant(fn)))
+                .parameterCount(args)
+                .build()));
+
+            emit(BytecodeType.Invoke, index);
         }
 
         @Override
@@ -558,13 +623,19 @@ public class Compiler {
         @Override
         public void enterIntegerLiteral(IntegerLiteralContext ctx) {
             String text = ctx.INTEGER().getText();
-            emit(BytecodeType.LoadInteger, Long.valueOf(text));
+            long integer = Long.valueOf(text);
+            IntegerConstant constant = new IntegerConstant(integer);
+            Long index = constants.value(constant);
+            emit(BytecodeType.LoadInteger, index);
         }
 
         @Override
         public void enterStringLiteral(StringLiteralContext ctx) {
             String text = ctx.STRING().getText();
-            emit(BytecodeType.LoadString, strings.value(text.substring(1, text.length() - 1)));
+            text = text.substring(1, text.length() - 1);
+            StringConstant constant = new StringConstant(text);
+            Long argument = constants.value(constant);
+            emit(BytecodeType.LoadString, argument);
         }
 
         @Override
@@ -618,18 +689,6 @@ public class Compiler {
                 );
             }
             return this.locals.get(identifier);
-        }
-
-        private void checkNative(String fnName, long args) {
-            if (!NATIVES.containsKey(fnName)) {
-                throw new IllegalStateException(String.format("Call to undefined native function %s in %s", fnName, functionName));
-            }
-            Long actualArity = NATIVES.get(fnName);
-            if (actualArity != args) {
-                throw new IllegalStateException(String.format(
-                    "Incorrect arity in call to %s in %s expected %s argument(s) got %s argument(s)",
-                    fnName, functionName, actualArity, args));
-            }
         }
     }
 

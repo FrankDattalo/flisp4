@@ -36,12 +36,35 @@ public:
             throw std::runtime_error{msg};
         }
 
+        DEBUGLN("Reading module name");
+        std::string module_name = ReadString(input_file);
+
+        DEBUGLN("Reading imports");
+        std::uint64_t import_count = ReadU64(input_file);
+        DEBUGLN("Total of " << import_count << " imports");
+        std::vector<std::string> import_names;
+        import_names.reserve(import_count);
+        for (std::uint64_t i = 0; i < import_count; i++) {
+            import_names.push_back(ReadString(input_file));
+        }
+
+        DEBUGLN("Reading exports");
+        std::uint64_t export_count = ReadU64(input_file);
+        DEBUGLN("Total of " << export_count << " exports");
+        std::vector<std::string> export_names;
+        export_names.reserve(export_count);
+        for (std::uint64_t i = 0; i < export_count; i++) {
+            export_names.push_back(ReadString(input_file));
+        }
+
         // read functions
         DEBUGLN("Reading functions");
         std::uint64_t fn_count = ReadU64(input_file);
         std::vector<Function> fns;
+        DEBUGLN("Total of " << fn_count << " functions");
         fns.reserve(fn_count);
         for (std::uint64_t i = 0; i < fn_count; i++) {
+            DEBUGLN("Reading function " << i);
             fns.push_back(ReadFunction(input_file));
         }
 
@@ -49,6 +72,7 @@ public:
         std::uint64_t constant_count = ReadU64(input_file);
         DEBUGLN("Reading constants");
         std::vector<Constant> constants;
+        DEBUGLN("Total of " << constant_count << " constants");
         constants.reserve(constant_count);
         for (std::uint64_t i = 0; i < constant_count; i++) {
             constants.push_back(ReadConstant(input_file));
@@ -58,6 +82,9 @@ public:
 
         return File{
             version,
+            std::move(module_name),
+            std::move(import_names),
+            std::move(export_names),
             std::move(fns),
             std::move(constants)
         };
@@ -66,6 +93,9 @@ public:
 private:
     static Constant ReadConstant(std::ifstream& stream) {
         std::uint8_t constantTypeByte = ReadU8(stream);
+
+        DEBUGLN("Leading constant type byte is " << constantTypeByte);
+
         ConstantType constantType = static_cast<ConstantType>(constantTypeByte);
 
         Constant constant(IntegerConstant{0}); // default initialize with some value
@@ -86,6 +116,14 @@ private:
                 constant = Constant(StringConstant{ReadString(stream)});
             }
 
+            void OnInvocation(ConstantType) override {
+                std::uint64_t module_name_index = ReadU64(stream);
+                std::uint64_t function_name_index = ReadU64(stream);
+                std::uint64_t parameter_count = ReadU64(stream);
+                Invocation c{module_name_index, function_name_index, parameter_count};
+                constant = Constant(InvocationConstant{std::move(c)});
+            }
+
         } visitor(constant, stream);
 
         Constant::VisitType(constantType, visitor);
@@ -95,9 +133,11 @@ private:
 
     static std::string ReadString(std::ifstream& stream) {
         std::uint64_t length = ReadU64(stream);
-        //DEBUGLN("Reading string of " << length << " characters");
+        DEBUGLN("Reading string of " << length << " characters");
         std::string result;
+        result.reserve(length);
         for (std::uint64_t i = 0; i < length; i++) {
+            DEBUGLN("Reading character " << i);
             result.push_back(ReadChar(stream));
         }
         return result;
@@ -128,19 +168,31 @@ private:
     }
 
     static Function ReadFunction(std::ifstream& stream) {
+        DEBUGLN("Reading name");
+        std::string name = ReadString(stream);
+        DEBUGLN("name = " << name);
+        DEBUGLN("Reading arity");
         std::uint64_t arity = ReadU64(stream);
+        DEBUGLN("arity = " << arity);
+        DEBUGLN("Reading locals");
         std::uint64_t locals = ReadU64(stream);
+        DEBUGLN("locals = " << locals);
+        DEBUGLN("Reading bytecode length");
         std::uint64_t bytecode_length = ReadU64(stream);
+        DEBUGLN("Total of " << bytecode_length << " bytecode");
         std::vector<Bytecode> bytecode;
         bytecode.reserve(bytecode_length);
         for (std::uint64_t i = 0; i < bytecode_length; i++) {
+            DEBUGLN("Reading bytecode " << i);
             bytecode.push_back(ReadBytecode(stream));
         }
-        return Function{arity, locals, std::move(bytecode)};
+        return Function{name, arity, locals, std::move(bytecode)};
     }
 
     static Bytecode ReadBytecode(std::ifstream& stream) {
         std::uint8_t bytecode = ReadU8(stream);
+
+        DEBUGLN("Leading bytecode tag " << static_cast<int>(bytecode));
 
         BytecodeType type = static_cast<BytecodeType>(bytecode);
         BytecodeArg arg;
@@ -154,6 +206,7 @@ private:
             {}
 
             void OnUnsigned(BytecodeArgType) override {
+                DEBUGLN("Reading unsigned arg");
                 std::uint64_t u = ReadU64(stream);
                 BytecodeArg result{u};
                 arg = result;
@@ -161,9 +214,12 @@ private:
 
             void OnNone(BytecodeArgType) override {
                 // intentionally empty
+                DEBUGLN("No arg for this bytecode");;
             }
 
         } visitor(arg, stream);
+
+        DEBUGLN("Read bytecode " << Bytecode::TypeToString(type));
 
         Bytecode::VisitArgType(type, visitor);
 

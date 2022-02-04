@@ -11,13 +11,12 @@
 @function main
 @arity 0
 @locals 1
-    LoadInteger 2
+    LoadInteger 0
     StoreLocal 0
     LoadLocal 0
-    LoadUnsigned 1
-    InvokeFunction 1
+    Invoke 3
     Pop
-    LoadInteger 3
+    LoadInteger 4
     StoreLocal 0
     Halt
 @endfunction
@@ -28,19 +27,17 @@
 @arity 1
 @locals 1
     LoadLocal 0
-    JumpIfFalse 9
-    LoadString 5
-    LoadUnsigned 1
-    InvokeNative 2
+    JumpIfFalse 8
+    LoadString 14
+    Invoke 11
     Pop
-    LoadInteger 1
+    LoadInteger 15
     Return
-    Jump 15
-    LoadString 6
-    LoadUnsigned 1
-    InvokeNative 2
+    Jump 13
+    LoadString 16
+    Invoke 11
     Pop
-    LoadInteger 2
+    LoadInteger 0
     Return
     LoadNil
     Return
@@ -51,23 +48,19 @@
 @function looper
 @arity 0
 @locals 0
-    LoadUnsigned 0
-    InvokeExternal 0
+    Invoke 7
     Pop
-    LoadString 1
-    LoadUnsigned 1
-    InvokeNative 2
+    LoadString 8
+    Invoke 11
     Pop
     LoadTrue
-    JumpIfFalse 14
-    LoadString 3
-    LoadUnsigned 1
-    InvokeNative 2
+    JumpIfFalse 11
+    LoadString 12
+    Invoke 11
     Pop
-    Jump 7
-    LoadString 4
-    LoadUnsigned 1
-    InvokeNative 2
+    Jump 5
+    LoadString 13
+    Invoke 11
     Pop
     LoadNil
     Return
@@ -75,11 +68,21 @@
 ; end - looper
 
 
-; String constants
+; constants
+@integer 2
+@string 4 self
+@string 5 greet
+@invocation 1 2 1
+@integer 3
+@string 5 apple
 @string 5 sauce
+@invocation 5 6 0
 @string 14 Hello, Before!
+@string 6 native
 @string 7 println
+@invocation 9 10 1
 @string 13 Hello, World!
 @string 13 Hello, After!
 @string 12 Hello, True!
+@integer 1
 @string 13 Hello, False!

@@ -37,9 +37,19 @@ void decompile(const std::vector<std::string>& args) {
     }
     const std::string & file_name = args.at(2);
     File result = BytecodeReader::Read(file_name);
+    std::cout << "Module: " << result.GetModuleName() << "\n";
+    std::cout << "Imports:\n";
+    for (std::size_t i = 0; i < result.GetImportNames().size(); i++) {
+        std::cout << "- Import[" << i << "] = " << result.GetImportNames().at(i) << "\n";
+    }
+    std::cout << "Exports:\n";
+    for (std::size_t i = 0; i < result.GetExportNames().size(); i++) {
+        std::cout << "- Exports[" << i << "] = " << result.GetExportNames().at(i) << "\n";
+    }
     std::cout << "Functions:\n";
     for (std::size_t i = 0; i < result.GetFunctions().size(); i++) {
         std::cout << "- Fn[" << i << "]\n";
+        std::cout << "  - Name: " << result.GetFunctions().at(i).GetName() << std::endl;
         std::cout << "  - Arity: " << result.GetFunctions().at(i).GetArity() << std::endl;
         std::cout << "  - Locals: " << result.GetFunctions().at(i).GetLocals() << std::endl;
         std::cout << "  - Bytecode:\n";

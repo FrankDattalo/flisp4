@@ -29,6 +29,15 @@ public:
 
         writeU64(output_file, file.GetVersion());
 
+        DEBUGLN("Writing module name");
+        writeString(output_file, file.GetModuleName());
+
+        DEBUGLN("Writing imports");
+        writeStrings(output_file, file.GetImportNames());
+
+        DEBUGLN("Writing exports");
+        writeStrings(output_file, file.GetExportNames());
+
         DEBUGLN("Writing functions");
         std::uint64_t fn_count = file.GetFunctions().size();
         writeU64(output_file, fn_count);
@@ -38,6 +47,7 @@ public:
 
             const Function& fn = file.GetFunctions().at(i);
 
+            writeString(output_file, fn.GetName());
             writeU64(output_file, fn.GetArity());
             writeU64(output_file, fn.GetLocals());
 
@@ -59,7 +69,11 @@ public:
                     : bytecode{_bytecode}
                     {}
 
-                    #define ADD_ENTRY(val) void On##val(const Bytecode&) { bytecode = static_cast<std::uint8_t>(BytecodeType::val); }
+                    #define ADD_ENTRY(val) \
+                        void On##val(const Bytecode&) override { \
+                            DEBUGLN("Writing " << #val); \
+                            bytecode = static_cast<std::uint8_t>(BytecodeType::val); \
+                        }
                     PER_BYTECODE_TYPE(ADD_ENTRY)
                     #undef ADD_ENTRY
 
@@ -67,11 +81,13 @@ public:
 
                 bc.Visit(visitor);
 
+                DEBUGLN("Writing bytecode tag " << static_cast<int>(bytecode));
+
                 // bytecode as int
 
                 writeU8(output_file, bytecode);
 
-                struct ArgVisitor : public BytecodeArgTypeVisitor {
+                struct ArgVisitor : public BytecodeArgVisitor {
                     const Bytecode& bc;
                     std::ofstream& output_file;
                 public:
@@ -79,15 +95,19 @@ public:
                     : bc{_bc}, output_file{_output_file}
                     {}
 
-                    void OnUnsigned(BytecodeArgType) override {
+                    void OnUnsigned(const BytecodeArg&) override {
+                        DEBUGLN("Writing bytecode u64 arg");
                         writeU64(output_file, bc.GetUnsignedArg());
                     }
 
-                    void OnNone(BytecodeArgType) override {
+                    void OnNone(const BytecodeArg&) override {
                         // intentionally empty
+                        DEBUGLN("No arg for bytecode");
                     }
 
                 } argVisitor(bc, output_file);
+
+                bc.VisitArg(argVisitor);
             }
         }
 
@@ -98,11 +118,6 @@ public:
             DEBUGLN("Writing constant " << i);
             const Constant& constant = file.GetConstants().at(i);
             writeConstant(output_file, constant);
-            // writeU64(output_file, static_cast<std::uint64_t>(string.size()));
-            // for (std::uint64_t j = 0; j < string.size(); j++) {
-            //     DEBUGLN("Writing string char " << i << "." << j);
-            //     writeChar(output_file, string.at(j));
-            // }
         }
 
         output_file.flush();
@@ -111,6 +126,13 @@ public:
         DEBUGLN("Written");
     }
 private:
+    static void writeStrings(std::ofstream& stream, const std::vector<std::string>& strs) {
+        writeU64(stream, strs.size());
+        for (std::uint64_t i = 0; i < strs.size(); i++) {
+            writeString(stream, strs.at(i));
+        }
+    }
+
     static void writeConstant(std::ofstream& stream, const Constant& constant) {
 
         struct Visitor : public ConstantVisitor {
@@ -127,12 +149,21 @@ private:
                 writeU8(stream, static_cast<std::uint8_t>(ConstantType::String));
                 writeString(stream, constant.GetStringConstant());
             }
+
+            void OnInvocation(const Constant& constant) override {
+                writeU8(stream, static_cast<std::uint8_t>(ConstantType::Invocation));
+                writeU64(stream, constant.GetInvocationConstant().GetModuleNameIndex());
+                writeU64(stream, constant.GetInvocationConstant().GetFunctionNameIndex());
+                writeU64(stream, constant.GetInvocationConstant().GetArgumentCount());
+            }
+
         } visitor(stream);
 
         constant.Visit(visitor);
     }
 
     static void writeString(std::ofstream& output_file, const std::string& string) {
+        DEBUGLN("Writing string '" << string << "' (" << string.size() << ")");
         writeU64(output_file, static_cast<std::uint64_t>(string.size()));
         for (std::uint64_t j = 0; j < string.size(); j++) {
             DEBUGLN("Writing string char " << j);

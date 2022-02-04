@@ -41,10 +41,14 @@ public:
 
         // wip file
         std::uint64_t version;
+        std::string module_name;
+        std::vector<std::string> import_names;
+        std::vector<std::string> export_names;
         std::vector<Function> functions;
         std::vector<Constant> constants;
 
         // wip function
+        std::string function_name;
         std::uint64_t arity;
         std::uint64_t locals;
         std::vector<Bytecode> bytecode;
@@ -83,10 +87,11 @@ public:
                 arity = 0;
                 locals = 0;
                 bytecode.clear();
+                function_name = split.at(1);
                 //DEBUGLN("Begin function");
             } else if (first == "@endfunction") {
                 //DEBUGLN("End function");
-                functions.emplace_back(arity, locals, bytecode);
+                functions.emplace_back(function_name, arity, locals, bytecode);
             } else if (first == "@arity") {
                 arity = std::stoull(split.at(1));
                 //DEBUGLN("Arity = " << arity);
@@ -109,8 +114,25 @@ public:
                     str.push_back(c);
                 }
                 DEBUGLN("Final string from '" << line << "' is '" << str << "'");
-                //string_constants.push_back(std::move(str));
-                // TODO: reading
+                constants.push_back(Constant(StringConstant{std::move(str)}));
+            } else if (first == "@integer") {
+                std::int64_t value = std::stoll(split.at(1));
+                constants.push_back(Constant(IntegerConstant{value}));
+            } else if (first == "@module") {
+                module_name = split.at(1);
+            } else if (first == "@import") {
+                import_names.push_back(split.at(1));
+            } else if (first == "@export") {
+                export_names.push_back(split.at(1));
+            } else if (first == "@invocation") {
+                std::uint64_t module_name_index = std::stoll(split.at(1));
+                std::uint64_t function_name_index = std::stoll(split.at(2));
+                std::uint64_t argument_count = std::stoll(split.at(3));
+                constants.push_back(Constant(InvocationConstant{Invocation{
+                    module_name_index,
+                    function_name_index,
+                    argument_count
+                }}));
             } else /* it's a bytecode */ {
                 Bytecode bc = getBytecode(split);
                 bytecode.push_back(bc);
@@ -121,7 +143,10 @@ public:
         DEBUGLN("Writing out file");
 
         File file{
-            std::move(version), 
+            version, 
+            std::move(module_name),
+            std::move(import_names),
+            std::move(export_names),
             std::move(functions), 
             std::move(constants)};
 

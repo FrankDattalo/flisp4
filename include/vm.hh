@@ -95,21 +95,19 @@ private:
             : self{_self}, terminate{_terminate}
             {}
 
-            void OnJumpIfFalse(const Bytecode& bc) { DEBUGLN("JumpIfFalse"); self.JumpIfFalse(bc); }
-            void OnJump(const Bytecode& bc) { DEBUGLN("Jump"); self.Jump(bc); }
-            void OnLoadNil(const Bytecode& bc) { DEBUGLN("LoadNil"); self.LoadNil(bc); }
-            void OnReturn(const Bytecode& bc) { DEBUGLN("Return"); self.Return(bc); }
-            void OnLoadLocal(const Bytecode& bc) { DEBUGLN("LoadLocal"); self.LoadLocal(bc); }
-            void OnStoreLocal(const Bytecode& bc) { DEBUGLN("StoreLocal"); self.StoreLocal(bc); }
-            void OnLoadInteger(const Bytecode& bc) { DEBUGLN("LoadInteger"); self.LoadInteger(bc); }
-            void OnLoadString(const Bytecode& bc) { DEBUGLN("LoadString"); self.LoadString(bc); }
-            void OnLoadTrue(const Bytecode& bc) { DEBUGLN("LoadTrue"); self.LoadTrue(bc); }
-            void OnLoadFalse(const Bytecode& bc) { DEBUGLN("LoadFalse"); self.LoadFalse(bc); }
-            void OnInvokeNative(const Bytecode& bc) { DEBUGLN("InvokeNative"); self.InvokeNative(bc); }
-            void OnInvokeFunction(const Bytecode& bc) { DEBUGLN("InvokeFunction"); self.InvokeFunction(bc); }
-            void OnLoadUnsigned(const Bytecode& bc) { DEBUGLN("LoadUnsigned"); self.LoadUnsigned(bc); }
-            void OnPop(const Bytecode& bc) { DEBUGLN("Pop"); self.Pop(bc); }
-            void OnHalt(const Bytecode& bc) { DEBUGLN("Halt"); terminate = true; }
+            void OnJumpIfFalse(const Bytecode& bc) override { DEBUGLN("JumpIfFalse"); self.JumpIfFalse(bc); }
+            void OnJump(const Bytecode& bc) override { DEBUGLN("Jump"); self.Jump(bc); }
+            void OnLoadNil(const Bytecode& bc) override { DEBUGLN("LoadNil"); self.LoadNil(bc); }
+            void OnReturn(const Bytecode& bc) override { DEBUGLN("Return"); self.Return(bc); }
+            void OnLoadLocal(const Bytecode& bc) override { DEBUGLN("LoadLocal"); self.LoadLocal(bc); }
+            void OnStoreLocal(const Bytecode& bc) override { DEBUGLN("StoreLocal"); self.StoreLocal(bc); }
+            void OnLoadInteger(const Bytecode& bc) override { DEBUGLN("LoadInteger"); self.LoadInteger(bc); }
+            void OnLoadString(const Bytecode& bc) override { DEBUGLN("LoadString"); self.LoadString(bc); }
+            void OnLoadTrue(const Bytecode& bc) override { DEBUGLN("LoadTrue"); self.LoadTrue(bc); }
+            void OnLoadFalse(const Bytecode& bc) override { DEBUGLN("LoadFalse"); self.LoadFalse(bc); }
+            void OnInvoke(const Bytecode& bc) override { DEBUGLN("Invoke"); self.Invoke(bc); }
+            void OnPop(const Bytecode& bc) override { DEBUGLN("Pop"); self.Pop(bc); }
+            void OnHalt(const Bytecode& bc) override { DEBUGLN("Halt"); terminate = true; }
         };
 
         return terminate;
@@ -139,40 +137,37 @@ private:
         this->frame->AdvanceProgramCounter();
     }
 
-    void InvokeNative(const Bytecode& bc) {
-        std::uint64_t num_args = this->frame->Pop().GetUnsignedInteger();
-        const std::string& native_fn_name = this->file.GetConstants().at(bc.GetUnsignedArg()).GetStringConstant();
-        const NativeFunction& fn = this->registry.Get(native_fn_name);
-        if (fn.GetArity() != num_args) {
-            // TODO, don't crash the vm
-            throw std::runtime_error{std::string{"Arity mismatch on native function call"}};
-        }
-        fn.Apply(this);
-        this->frame->AdvanceProgramCounter();
-    }
+    // void InvokeNative(const Bytecode& bc) {
+    //     std::uint64_t num_args = this->frame->Pop().GetUnsignedInteger();
+    //     const std::string& native_fn_name = this->file.GetConstants().at(bc.GetUnsignedArg()).GetStringConstant();
+    //     const NativeFunction& fn = this->registry.Get(native_fn_name);
+    //     if (fn.GetArity() != num_args) {
+    //         // TODO, don't crash the vm
+    //         throw std::runtime_error{std::string{"Arity mismatch on native function call"}};
+    //     }
+    //     fn.Apply(this);
+    //     this->frame->AdvanceProgramCounter();
+    // }
 
-    void InvokeFunction(const Bytecode& bc) {
-        const Function& fn = this->file.GetFunctions().at(bc.GetUnsignedArg());
-        std::uint64_t num_args = this->frame->Pop().GetUnsignedInteger();
-        if (fn.GetArity() != num_args) {
-            // TODO, don't crash the vm
-            throw std::runtime_error{std::string{"Arity mismatch on function call"}};
-        }
-        pushFrame(&fn);
-        // assign the arguments from the outer stack frame
-        StackFrame* outer = this->frame->GetNullableOuter();
-        std::size_t local_index = num_args - 1;
-        for (std::uint64_t i = 0; i < num_args; i++)  {
-            this->frame->SetLocal(local_index, outer->Pop());
-            local_index--;
-        }
-    }
+    // void InvokeFunction(const Bytecode& bc) {
+    //     const Function& fn = this->file.GetFunctions().at(bc.GetUnsignedArg());
+    //     std::uint64_t num_args = this->frame->Pop().GetUnsignedInteger();
+    //     if (fn.GetArity() != num_args) {
+    //         // TODO, don't crash the vm
+    //         throw std::runtime_error{std::string{"Arity mismatch on function call"}};
+    //     }
+    //     pushFrame(&fn);
+    //     // assign the arguments from the outer stack frame
+    //     StackFrame* outer = this->frame->GetNullableOuter();
+    //     std::size_t local_index = num_args - 1;
+    //     for (std::uint64_t i = 0; i < num_args; i++)  {
+    //         this->frame->SetLocal(local_index, outer->Pop());
+    //         local_index--;
+    //     }
+    // }
 
-    void LoadUnsigned(const Bytecode& bc) {
-        Object tmp;
-        tmp.SetUnsignedInteger(bc.GetUnsignedArg());
-        this->frame->Push(tmp);
-        this->frame->AdvanceProgramCounter();
+    void Invoke(const Bytecode& bc) {
+        // TODO
     }
 
     void JumpIfFalse(const Bytecode& bc) {
