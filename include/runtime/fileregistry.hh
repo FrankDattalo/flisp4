@@ -64,14 +64,101 @@ public:
     }
 };
 
+template<typename T, std::size_t BLOCK_SIZE>
+class IndexedRegistry {
+private:
+    RegistryList<T, BLOCK_SIZE> list;
+    std::map<typename T::Key, const T*> lookup;
+public:
+    IndexedRegistry() = default;
+    ~IndexedRegistry() = default;
+
+    NOT_COPYABLE(IndexedRegistry);
+    NOT_MOVEABLE(IndexedRegistry);
+
+    std::optional<const T*> Lookup(const typename T::Key& key) {
+        auto result = lookup.find(key);
+        if (result == lookup.end()) {
+            return std::nullopt;
+        }
+        return result->second;
+    }
+
+    const T* Register(T data) {
+        auto key = data.GetKey();
+        if (lookup.find(key) != lookup.end()) {
+            throw std::runtime_error{"Redefinition error"};
+        }
+        const T* result = list.Register(std::move(data));
+        lookup[key] = result;
+        return result;
+    }
+};
+
+class RegisteredFile {
+private:
+    bytecode::File file;
+public:
+    using Key = std::string;
+
+    RegisteredFile() = default;
+
+    RegisteredFile(bytecode::File _file)
+    : file{std::move(_file)}
+    {}
+
+    ~RegisteredFile() = default;
+
+    NOT_COPYABLE(RegisteredFile);
+    MOVEABLE(RegisteredFile);
+
+    Key GetKey() const {
+        return file.GetModuleName();
+    }
+
+    const bytecode::File* GetFile() const { return &file; }
+};
+
+class RegisteredFunction {
+private:
+    const bytecode::Function* function;
+    const RegisteredFile* file;
+public:
+    using Key = std::pair<std::string, std::string>;
+
+    RegisteredFunction() = default;
+
+    RegisteredFunction(const bytecode::Function* _function, const RegisteredFile* _file)
+    : function{_function}, file{_file}
+    {}
+
+    ~RegisteredFunction() = default;
+
+    NOT_COPYABLE(RegisteredFunction);
+    MOVEABLE(RegisteredFunction);
+
+    Key GetKey() const {
+        return std::make_pair(
+            file->GetKey(),
+            function->GetName()
+        );
+    }
+
+    const bytecode::Function* GetFunction() const { return function; }
+    const bytecode::File* GetFile() const { return file->GetFile(); }
+};
+
 class FileRegistry {
 private:
-    using function_key = std::pair<std::string, std::string>;
+    constexpr static std::size_t FILE_BLOCK_SIZE = 1;
+    constexpr static std::size_t FUNCTION_BLOCK_SIZE = 20;
 
-    constexpr static std::size_t BLOCK_SIZE = 1;
-    RegistryList<bytecode::File, BLOCK_SIZE> files;
-    std::map<std::string, const bytecode::File*> file_lookup;
-    std::map<function_key, const bytecode::Function*> function_lookup;
+    using Files = IndexedRegistry<RegisteredFile, FILE_BLOCK_SIZE>;
+    using Functions = IndexedRegistry<RegisteredFunction, FUNCTION_BLOCK_SIZE>;
+
+    Files files;
+    Functions functions;
+
     std::mutex mutex;
 public:
     FileRegistry() = default;
@@ -80,48 +167,28 @@ public:
     NOT_COPYABLE(FileRegistry);
     NOT_MOVEABLE(FileRegistry);
 
-    std::optional<const bytecode::File*> Lookup(const std::string& name) {
-
+    std::optional<const RegisteredFile*> LookupFile(const std::string& name) {
         std::scoped_lock lock{mutex};
-
-        auto result = file_lookup.find(name);
-        if (result == file_lookup.end()) {
-            return std::nullopt;
-        }
-
-        return result->second;
+        return files.Lookup(name);
     }
 
-    std::optional<const bytecode::Function*> LookupFunction(const std::string& module, 
+    std::optional<const RegisteredFunction*> LookupFunction(const std::string& module, 
                                                             const std::string& function) {
-
         std::scoped_lock lock{mutex};
-
-        function_key key = std::make_pair(module, function);
-        auto result = function_lookup.find(key);
-        if (result == function_lookup.end()) {
-            return std::nullopt;
-        }
-
-        return result->second;
+        RegisteredFunction::Key key = std::make_pair(module, function);
+        return functions.Lookup(key);
     }
 
-    const bytecode::File* Register(bytecode::File file) {
+    const RegisteredFile* Register(bytecode::File file) {
 
         std::scoped_lock lock{mutex};
 
-        if (file_lookup.find(file.GetModuleName()) != file_lookup.end()) {
-            std::string msg{"Redefinition of module: "};
-            msg.append(file.GetModuleName());
-            throw std::runtime_error{msg};
-        }
+        RegisteredFile reg_file{std::move(file)};
+        const RegisteredFile* result = files.Register(std::move(reg_file));
 
-        const bytecode::File* result = files.Register(std::move(file));
-        file_lookup[result->GetModuleName()] = result;
-
-        for (const bytecode::Function& fn : result->GetFunctions()) {
-            function_key key = std::make_pair(file.GetModuleName(), fn.GetName());
-            function_lookup[key] = &fn;
+        for (const bytecode::Function& fn : result->GetFile()->GetFunctions()) {
+            RegisteredFunction reg_fn{&fn, result};
+            functions.Register(std::move(reg_fn));
         }
 
         return result;

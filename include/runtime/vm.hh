@@ -3,9 +3,11 @@
 
 #include <optional>
 
-#include "bytecode/bytecode.hh"
 #include "util/debug.hh"
 #include "util/memory_semantic_macros.hh"
+
+#include "bytecode/bytecode.hh"
+
 #include "heap.hh"
 #include "object.hh"
 #include "stack.hh"
@@ -21,12 +23,13 @@ private:
     NativeFunctionRegistry natives;
     CallStack stack;
     Heap heap;
+    SymbolTable symbol_table;
 public:
     VirtualMachine() : heap{1000} /* TODO change this */ {
         registerNatives();
     }
 
-    virtual ~VirtualMachine() = default;
+    ~VirtualMachine() = default;
 
     NOT_COPYABLE(VirtualMachine);
     NOT_MOVEABLE(VirtualMachine);
@@ -215,8 +218,8 @@ private:
         frame->AdvanceProgramCounter();
     }
 
-    void pushFrame(const bytecode::Function* fn, const bytecode::File* file) {
-        stack.Push(fn, file);
+    void pushFrame(const RegisteredFunction* fn) {
+        stack.Push(fn);
     }
 
     void loadEntrypoint() {
@@ -225,9 +228,8 @@ private:
         if (result == std::nullopt) {
             throw std::runtime_error{std::string{"No main/main function defined"}};
         }
-        const bytecode::Function* fn = *result;
-        const bytecode::File* file = *files.Lookup("main");
-        pushFrame(fn, file);
+        const RegisteredFunction* fn = *result;
+        pushFrame(fn);
     }
 
     void waitForInput() {

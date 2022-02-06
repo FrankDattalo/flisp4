@@ -9,6 +9,7 @@
 #include "object.hh"
 #include "util/memory_semantic_macros.hh"
 #include "heap.hh"
+#include "fileregistry.hh"
 
 namespace runtime {
 
@@ -16,13 +17,11 @@ class StackFrame {
 private:
     std::vector<Object> locals;
     std::vector<Object> temps;
-    const bytecode::Function* fn;
-    const bytecode::File* file;
+    const RegisteredFunction* fn;
     std::size_t program_counter;
 public:
     StackFrame() {
         fn = nullptr;
-        file = nullptr;
         program_counter = 0;
     }
 
@@ -30,11 +29,10 @@ public:
 
     NOT_COPYABLE(StackFrame);
 
-    void Initialize(const bytecode::Function* _fn, const bytecode::File* _file) {
-        locals.resize(_fn->GetLocals());
+    void Initialize(const RegisteredFunction* _fn) {
+        locals.resize(_fn->GetFunction()->GetLocals());
         temps.clear();
         fn = _fn;
-        file = _file;
         program_counter = 0;
     }
 
@@ -49,11 +47,11 @@ public:
     }
 
     const bytecode::Bytecode& GetBytecode(std::size_t index) const {
-        return fn->GetBytecode().at(index);
+        return fn->GetFunction()->GetBytecode().at(index);
     }
 
     const bytecode::Constant& GetConstant(std::size_t index) const {
-        return file->GetConstants().at(index);
+        return fn->GetFile()->GetConstants().at(index);
     }
 
     std::uint64_t LocalCount() const {
@@ -83,7 +81,7 @@ public:
     void DebugPrint() {
 
         std::cout << "FRAME -------------------------------------------\n";
-        std::cout << "| ARITY    " << fn->GetArity() << "\n";
+        std::cout << "| ARITY    " << fn->GetFunction()->GetArity() << "\n";
         std::cout << "| LOCALS   [";
         for (std::size_t i = 0; i < LocalCount(); i++) {
             if (i != 0) {
@@ -104,9 +102,9 @@ public:
         std::cout << "]\n";
         std::cout << "| PC       " << GetProgramCounter() << "\n";
         std::cout << "| BYTECODE \n";
-        for (std::size_t i = 0; i < fn->GetBytecode().size(); i++) {
+        for (std::size_t i = 0; i < fn->GetFunction()->GetBytecode().size(); i++) {
             std::cout << "| [" << i << "] ";
-            const bytecode::Bytecode& bc = fn->GetBytecode().at(i);
+            const bytecode::Bytecode& bc = fn->GetFunction()->GetBytecode().at(i);
             std::cout << bc.GetTypeToString() << " " << bc.ArgToString();
             if (i == GetProgramCounter()) {
                 std::cout << " <~~~~~~~~~~~~~~~~~~";
@@ -137,11 +135,11 @@ public:
         first_free -= 1;
     }
 
-    void Push(const bytecode::Function* fn, const bytecode::File* file) {
+    void Push(const RegisteredFunction* fn) {
         if (first_free == frames.size()) {
             throw std::runtime_error{"Push on full call stack"};
         }
-        frames.at(first_free).Initialize(fn, file);
+        frames.at(first_free).Initialize(fn);
         first_free += 1;
     }
 
