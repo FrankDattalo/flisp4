@@ -36,7 +36,7 @@ public:
         DEBUGLN("Adding root marker");
         heap.AddRootMarker(&stack);
         DEBUGLN("Adding initial frame");
-        stack.Push(getEntrypoint());
+        loadEntrypoint();
         DEBUGLN("Entering main loop");
         loop();
         DEBUGLN("Main loop terminated");
@@ -126,13 +126,12 @@ private:
     }
 
     void LoadString(StackFrame* frame, const bytecode::Bytecode& bc) {
-        frame->Get
-        const std::string& str = this->file.GetConstants().at(bc.GetUnsignedArg()).GetStringConstant();
+        const std::string& str = frame->GetConstant(bc.GetUnsignedArg()).GetStringConstant();
         Object* result = this->heap.AllocateString(str);
         Object tmp;
         tmp.SetReference(result);
-        this->frame->Push(tmp);
-        this->frame->AdvanceProgramCounter();
+        frame->Push(tmp);
+        frame->AdvanceProgramCounter();
     }
 
     // void InvokeNative(const bytecode::Bytecode& bc) {
@@ -164,128 +163,71 @@ private:
     //     }
     // }
 
-    void Invoke(const bytecode::Bytecode& bc) {
+    void Invoke(StackFrame* frame, const bytecode::Bytecode& bc) {
         // TODO
     }
 
-    void JumpIfFalse(const bytecode::Bytecode& bc) {
-        Object res = this->frame->Pop();
+    void JumpIfFalse(StackFrame* frame, const bytecode::Bytecode& bc) {
+        Object res = frame->Pop();
         if (res.IsType(ObjectType::Boolean) && !res.GetBoolean()) {
-            this->frame->SetProgramCounter(bc.GetUnsignedArg());
+            frame->SetProgramCounter(bc.GetUnsignedArg());
         } else {
-            this->frame->AdvanceProgramCounter();
+            frame->AdvanceProgramCounter();
         }
     }
 
-    void Jump(const bytecode::Bytecode& bc) {
-        this->frame->SetProgramCounter(bc.GetUnsignedArg());
+    void Jump(StackFrame* frame, const bytecode::Bytecode& bc) {
+        frame->SetProgramCounter(bc.GetUnsignedArg());
     }
 
-    void LoadTrue(const bytecode::Bytecode& bc) {
+    void LoadTrue(StackFrame* frame, const bytecode::Bytecode& bc) {
         Object temp;
         temp.SetBoolean(true);
-        this->frame->Push(temp);
-        this->frame->AdvanceProgramCounter();
+        frame->Push(temp);
+        frame->AdvanceProgramCounter();
     }
 
-    void LoadFalse(const bytecode::Bytecode& bc) {
+    void LoadFalse(StackFrame* frame, const bytecode::Bytecode& bc) {
         Object temp;
         temp.SetBoolean(false);
-        this->frame->Push(temp);
-        this->frame->AdvanceProgramCounter();
+        frame->Push(temp);
+        frame->AdvanceProgramCounter();
     }
 
-    void LoadNil(const bytecode::Bytecode& bc) {
-        this->frame->Push(Object{});
-        this->frame->AdvanceProgramCounter();
+    void LoadNil(StackFrame* frame, const bytecode::Bytecode& bc) {
+        frame->Push(Object{});
+        frame->AdvanceProgramCounter();
     }
 
-    void LoadInteger(const bytecode::Bytecode& bc) {
+    void LoadInteger(StackFrame* frame, const bytecode::Bytecode& bc) {
+        std::int64_t value = frame->GetConstant(bc.GetUnsignedArg()).GetIntegerConstant();
         Object temp;
-        temp.SetInteger(this->file.GetConstants().at(bc.GetUnsignedArg()).GetIntegerConstant());
-        this->frame->Push(temp);
-        this->frame->AdvanceProgramCounter();
+        temp.SetInteger(value);
+        frame->Push(temp);
+        frame->AdvanceProgramCounter();
     }
 
-    void Return(const bytecode::Bytecode& bc) {
-        Object ret = this->frame->Pop();
-        this->frame = this->frame->GetOuter();
-        this->frame->Push(ret);
-        this->frame->AdvanceProgramCounter();
+    void Return(StackFrame* frame, const bytecode::Bytecode& bc) {
+        Object ret = frame->Pop();
+        stack.Pop();
+        frame = stack.CurrentFrame();
+        frame->Push(ret);
+        frame->AdvanceProgramCounter();
     }
 
-    void pushFrame(const Function* fn) {
-        this->frame = std::make_unique<StackFrame>(std::move(this->frame), fn);
+    void pushFrame(const bytecode::Function* fn, const bytecode::File* file) {
+        stack.Push(fn, file);
     }
 
-    const bytecode::Function* getEntrypoint() {
-        // TODO: separate this into some other validation class
-        if (this->file.GetFunctions().size() == 0) {
-            throw std::runtime_error{std::string{"No functions defined in file"}};
-        }
-        auto result = &this->file.GetFunctions().at(0);
-        if (result->GetArity() != 0) {
-            throw std::runtime_error{std::string{"Expected entrypoint function to have arity of 0"}};
-        }
-
+    void loadEntrypoint() {
+        // TODO: separate this into some other validation class?
         auto result = files.LookupFunction("main", "main");
         if (result == std::nullopt) {
             throw std::runtime_error{std::string{"No main/main function defined"}};
         }
-
-
-        return result;
-    }
-
-    void debugPrintFrame(StackFrame* frame) {
-        std::cout << "FRAME -------------------------------------------\n";
-        std::cout << "| ARITY    " << frame->GetFunction()->GetArity() << "\n";
-        std::cout << "| LOCALS   [";
-        for (std::size_t i = 0; i < frame->LocalCount(); i++) {
-            if (i != 0) {
-                std::cout << ", ";
-            }
-            Object local = frame->GetLocal(i);
-            std::cout << local.ToDebugString();
-        }
-        std::cout << "]\n";
-        std::cout << "| TEMPS    [";
-        for (std::size_t i = 0; i < frame->TempCount(); i++) {
-            if (i != 0) {
-                std::cout << ", ";
-            }
-            Object temp = frame->GetTemp(i);
-            std::cout << temp.ToDebugString();
-        }
-        std::cout << "]\n";
-        std::cout << "| PC       " << frame->GetProgramCounter() << "\n";
-        std::cout << "| BYTECODE \n";
-        for (std::size_t i = 0; i < frame->GetFunction()->GetBytecode().size(); i++) {
-            std::cout << "| [" << i << "] ";
-            const bytecode::Bytecode& bc = frame->GetFunction()->GetBytecode().at(i);
-            std::cout << bc.GetTypeToString() << " " << bc.ArgToString();
-            if (i == frame->GetProgramCounter()) {
-                std::cout << " <~~~~~~~~~~~~~~~~~~";
-            }
-            std::cout << "\n";
-        }
-        std::cout << "-------------------------------------------------\n";
-    }
-
-    void debugPrint() {
-        std::cout << "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n";
-        bool first = true;
-        StackFrame* frame = this->frame.get();
-        while (frame != nullptr) {
-            if (!first) {
-                std::cout << "^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n";
-            }
-            debugPrintFrame(frame);
-            frame = frame->GetNullableOuter();
-            first = false;
-        }
-        std::cout << "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n";
-        std::cout << std::endl;
+        const bytecode::Function* fn = *result;
+        const bytecode::File* file = *files.Lookup("main");
+        pushFrame(fn, file);
     }
 
     void waitForInput() {
@@ -294,16 +236,21 @@ private:
         std::getline(std::cin, line);
     }
 
-    void registerNatives() {
-        this->registry.Register(NativeFunction{"println", 1, NativePrintln});
+    void debugPrint() {
+        std::cout << "Call Stack:" << std::endl;
+        stack.DebugPrint();
     }
 
-    static void NativePrintln(VirtualMachine* vm) {
-        Object to_print = vm->frame->Pop();
+    void registerNatives() {
+        natives.Register(NativeFunction{"println", 1, NativePrintln});
+    }
+
+    static void NativePrintln(runtime::VirtualMachine* vm) {
+        Object to_print = vm->stack.CurrentFrame()->Pop();
         std::cout << to_print.ToDebugString() << std::endl; // TODO: change this
         Object obj;
         obj.SetNil();
-        vm->frame->Push(obj);
+        vm->stack.CurrentFrame()->Push(obj);
     }
 };
 

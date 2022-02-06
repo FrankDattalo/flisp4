@@ -79,6 +79,43 @@ public:
     void AdvanceProgramCounter() {
         this->program_counter += 1;
     }
+
+    void DebugPrint() {
+
+        std::cout << "FRAME -------------------------------------------\n";
+        std::cout << "| ARITY    " << fn->GetArity() << "\n";
+        std::cout << "| LOCALS   [";
+        for (std::size_t i = 0; i < LocalCount(); i++) {
+            if (i != 0) {
+                std::cout << ", ";
+            }
+            Object local = GetLocal(i);
+            std::cout << local.ToDebugString();
+        }
+        std::cout << "]\n";
+        std::cout << "| TEMPS    [";
+        for (std::size_t i = 0; i < temps.size(); i++) {
+            if (i != 0) {
+                std::cout << ", ";
+            }
+            Object temp = temps.at(i);
+            std::cout << temp.ToDebugString();
+        }
+        std::cout << "]\n";
+        std::cout << "| PC       " << GetProgramCounter() << "\n";
+        std::cout << "| BYTECODE \n";
+        for (std::size_t i = 0; i < fn->GetBytecode().size(); i++) {
+            std::cout << "| [" << i << "] ";
+            const bytecode::Bytecode& bc = fn->GetBytecode().at(i);
+            std::cout << bc.GetTypeToString() << " " << bc.ArgToString();
+            if (i == GetProgramCounter()) {
+                std::cout << " <~~~~~~~~~~~~~~~~~~";
+            }
+            std::cout << "\n";
+        }
+        std::cout << "-------------------------------------------------\n";
+    }
+
 };
 
 class CallStack : public RootMarker {
@@ -123,6 +160,22 @@ public:
         // for (Object& temp: temps) {
         //     heap->TransferIfReference(&temp);
         // }
+    }
+
+    void DebugPrint() {
+        std::cout << "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n";
+        for (std::size_t i = first_free - 1; true; i--) {
+            if (i == first_free - 1) {
+                // top of stack
+                std::cout << "^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n";
+                frames.at(i).DebugPrint();
+            }
+            if (i == 0) {
+                break;
+            }
+        }
+        std::cout << "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n";
+        std::cout << std::endl;
     }
 };
 

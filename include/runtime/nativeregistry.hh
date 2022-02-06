@@ -8,9 +8,10 @@
 #include "util/debug.hh"
 #include "util/memory_semantic_macros.hh"
 
-class VirtualMachine;
 
 namespace runtime {
+
+class VirtualMachine;
 
 using NativeFunctionHandle = void (*)(VirtualMachine* vm);
 
