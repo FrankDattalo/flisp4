@@ -13,13 +13,13 @@
 #include "stack.hh"
 #include "symbol_table.hh"
 #include "nativeregistry.hh"
-#include "fileregistry.hh"
+#include "coderegistry.hh"
 
 namespace runtime {
 
 class VirtualMachine {
 private:
-    FileRegistry files;
+    CodeRegistry code_registry;
     NativeFunctionRegistry natives;
     CallStack stack;
     Heap heap;
@@ -224,7 +224,7 @@ private:
 
     void loadEntrypoint() {
         // TODO: separate this into some other validation class?
-        auto result = files.LookupFunction("main", "main");
+        auto result = code_registry.LookupFunction("main", "main");
         if (result == std::nullopt) {
             throw std::runtime_error{std::string{"No main/main function defined"}};
         }

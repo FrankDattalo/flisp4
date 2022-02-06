@@ -148,7 +148,7 @@ public:
     const bytecode::File* GetFile() const { return file->GetFile(); }
 };
 
-class FileRegistry {
+class CodeRegistry {
 private:
     constexpr static std::size_t FILE_BLOCK_SIZE = 1;
     constexpr static std::size_t FUNCTION_BLOCK_SIZE = 20;
@@ -161,11 +161,11 @@ private:
 
     std::mutex mutex;
 public:
-    FileRegistry() = default;
-    ~FileRegistry() = default;
+    CodeRegistry() = default;
+    ~CodeRegistry() = default;
 
-    NOT_COPYABLE(FileRegistry);
-    NOT_MOVEABLE(FileRegistry);
+    NOT_COPYABLE(CodeRegistry);
+    NOT_MOVEABLE(CodeRegistry);
 
     std::optional<const RegisteredFile*> LookupFile(const std::string& name) {
         std::scoped_lock lock{mutex};

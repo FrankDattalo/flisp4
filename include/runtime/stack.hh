@@ -9,7 +9,7 @@
 #include "object.hh"
 #include "util/memory_semantic_macros.hh"
 #include "heap.hh"
-#include "fileregistry.hh"
+#include "coderegistry.hh"
 
 namespace runtime {
 
