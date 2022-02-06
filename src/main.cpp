@@ -1,5 +1,5 @@
-#include "entry.hh"
+#include "cmd/entry.hh"
 
 int main(int argc, char** argv) {
-    return entry(argc, argv);
+    return cmd::entry(argc, argv);
 }

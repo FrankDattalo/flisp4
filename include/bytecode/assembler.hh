@@ -9,11 +9,14 @@
 #include <vector>
 #include <map>
 
-#include "memory_semantic_macros.hh"
+#include "util/memory_semantic_macros.hh"
+#include "util/debug.hh"
+
 #include "bytecode.hh"
-#include "debug.hh"
 #include "bytecode_reader.hh"
 #include "bytecode_writer.hh"
+
+namespace bytecode {
 
 class Assembler {
 public:
@@ -44,14 +47,14 @@ public:
         std::string module_name;
         std::vector<std::string> import_names;
         std::vector<std::string> export_names;
-        std::vector<Function> functions;
-        std::vector<Constant> constants;
+        std::vector<bytecode::Function> functions;
+        std::vector<bytecode::Constant> constants;
 
         // wip function
         std::string function_name;
         std::uint64_t arity;
         std::uint64_t locals;
-        std::vector<Bytecode> bytecode;
+        std::vector<bytecode::Bytecode> bytecode;
 
         std::string line;
         while (true) {
@@ -114,10 +117,10 @@ public:
                     str.push_back(c);
                 }
                 DEBUGLN("Final string from '" << line << "' is '" << str << "'");
-                constants.push_back(Constant(StringConstant{std::move(str)}));
+                constants.push_back(bytecode::Constant(bytecode::StringConstant{std::move(str)}));
             } else if (first == "@integer") {
                 std::int64_t value = std::stoll(split.at(1));
-                constants.push_back(Constant(IntegerConstant{value}));
+                constants.push_back(bytecode::Constant(bytecode::IntegerConstant{value}));
             } else if (first == "@module") {
                 module_name = split.at(1);
             } else if (first == "@import") {
@@ -128,13 +131,13 @@ public:
                 std::uint64_t module_name_index = std::stoll(split.at(1));
                 std::uint64_t function_name_index = std::stoll(split.at(2));
                 std::uint64_t argument_count = std::stoll(split.at(3));
-                constants.push_back(Constant(InvocationConstant{Invocation{
+                constants.push_back(bytecode::Constant(bytecode::InvocationConstant{bytecode::Invocation{
                     module_name_index,
                     function_name_index,
                     argument_count
                 }}));
             } else /* it's a bytecode */ {
-                Bytecode bc = getBytecode(split);
+                bytecode::Bytecode bc = getBytecode(split);
                 bytecode.push_back(bc);
                 //DEBUGLN("Bytecode = " << Bytecode::TypeToString(bc.GetType()));
             }
@@ -142,7 +145,7 @@ public:
 
         DEBUGLN("Writing out file");
 
-        File file{
+        bytecode::File file{
             version, 
             std::move(module_name),
             std::move(import_names),
@@ -179,39 +182,41 @@ private:
         return false;
     }
 
-    static Bytecode getBytecode(const std::vector<std::string>& line) {
+    static bytecode::Bytecode getBytecode(const std::vector<std::string>& line) {
 
         const std::string & bc = line.at(0);
 
         DEBUGLN("First '" << bc << "'");
 
-        BytecodeType type = Bytecode::TypeFromString(bc);
-        BytecodeArg arg;
+        bytecode::BytecodeType type = bytecode::Bytecode::TypeFromString(bc);
+        bytecode::BytecodeArg arg;
 
-        struct Visitor : BytecodeArgTypeVisitor {
-            BytecodeArg& result;
+        struct Visitor : bytecode::BytecodeArgTypeVisitor {
+            bytecode::BytecodeArg& result;
             const std::vector<std::string>& line;
 
-            Visitor(BytecodeArg& _result, const std::vector<std::string>& _line): result{_result}, line{_line} {}
+            Visitor(bytecode::BytecodeArg& _result, const std::vector<std::string>& _line): result{_result}, line{_line} {}
 
-            void OnNone(BytecodeArgType) override {
+            void OnNone(bytecode::BytecodeArgType) override {
                 // already initialize to none
             }
 
-            void OnUnsigned(BytecodeArgType) override {
+            void OnUnsigned(bytecode::BytecodeArgType) override {
                 std::uint64_t u = std::stoull(line.at(1));
-                BytecodeArg arg{u};
+                bytecode::BytecodeArg arg{u};
                 result = arg;
             }
 
         } visitor (arg, line);
 
-        Bytecode::VisitArgType(type, visitor);
+        bytecode::Bytecode::VisitArgType(type, visitor);
 
-        Bytecode result{type, arg};
+        bytecode::Bytecode result{type, arg};
 
         return result;
     }
 };
+
+}
 
 #endif // ASSEMBLER_HH__

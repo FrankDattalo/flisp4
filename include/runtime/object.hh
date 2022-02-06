@@ -5,8 +5,11 @@
 #include <limits>
 #include <sstream>
 
-#include "memory_semantic_macros.hh"
-#include "bytecode.hh"
+#include "util/memory_semantic_macros.hh"
+
+#include "bytecode/bytecode.hh"
+
+namespace runtime {
 
 enum class ObjectType {
     Nil, 
@@ -30,11 +33,11 @@ class Object {
 private:
     ObjectType type;
     union {
-        const Function* function_reference;
-        Object*         reference;
-        std::int64_t    integer;
-        std::uint64_t   unsigned_integer;
-        double          real;
+        const bytecode::Function* function_reference;
+        Object*                   reference;
+        std::int64_t              integer;
+        std::uint64_t             unsigned_integer;
+        double                    real;
     };
 public:
     Object() {
@@ -139,12 +142,12 @@ public:
         return this->type;
     }
 
-    void SetFunctionReference(const Function* fn) {
+    void SetFunctionReference(const bytecode::Function* fn) {
         this->type = ObjectType::FunctionReference;
         this->function_reference = fn;
     }
 
-    const Function* GetFunctionReference() {
+    const bytecode::Function* GetFunctionReference() {
         checkType(ObjectType::FunctionReference);
         return this->function_reference;
     }
@@ -229,5 +232,7 @@ private:
 };
 
 static_assert(sizeof(Object) == 2 * sizeof(std::uint64_t));
+
+}
 
 #endif // OBJECT_HH__

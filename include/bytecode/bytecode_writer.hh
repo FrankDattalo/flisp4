@@ -4,9 +4,12 @@
 #include <string>
 #include <fstream>
 
-#include "memory_semantic_macros.hh"
+#include "util/memory_semantic_macros.hh"
+#include "util/debug.hh"
+
 #include "bytecode.hh"
-#include "debug.hh"
+
+namespace bytecode {
 
 class BytecodeWriter {
 public:
@@ -18,7 +21,7 @@ public:
 
     NOT_MOVEABLE(BytecodeWriter);
 
-    static void Write(const File & file, const std::string & dest) {
+    static void Write(const bytecode::File & file, const std::string & dest) {
         
         std::ofstream output_file;
 
@@ -45,7 +48,7 @@ public:
         for (std::uint64_t i = 0; i < fn_count; i++) {
             DEBUGLN("Writing function " << i);
 
-            const Function& fn = file.GetFunctions().at(i);
+            const bytecode::Function& fn = file.GetFunctions().at(i);
 
             writeString(output_file, fn.GetName());
             writeU64(output_file, fn.GetArity());
@@ -57,11 +60,11 @@ public:
             for (std::uint64_t j = 0; j < bytecode_count; j++) {
                 DEBUGLN("Writing bytecode " << i << "." << j);
 
-                const Bytecode& bc = fn.GetBytecode().at(j);
+                const bytecode::Bytecode& bc = fn.GetBytecode().at(j);
 
                 std::uint8_t bytecode = 0;
 
-                struct Visitor : public BytecodeVisitor {
+                struct Visitor : public bytecode::BytecodeVisitor {
                     std::uint8_t& bytecode;
                 public:
 
@@ -70,9 +73,9 @@ public:
                     {}
 
                     #define ADD_ENTRY(val) \
-                        void On##val(const Bytecode&) override { \
+                        void On##val(const bytecode::Bytecode&) override { \
                             DEBUGLN("Writing " << #val); \
-                            bytecode = static_cast<std::uint8_t>(BytecodeType::val); \
+                            bytecode = static_cast<std::uint8_t>(bytecode::BytecodeType::val); \
                         }
                     PER_BYTECODE_TYPE(ADD_ENTRY)
                     #undef ADD_ENTRY
@@ -87,20 +90,20 @@ public:
 
                 writeU8(output_file, bytecode);
 
-                struct ArgVisitor : public BytecodeArgVisitor {
-                    const Bytecode& bc;
+                struct ArgVisitor : public bytecode::BytecodeArgVisitor {
+                    const bytecode::Bytecode& bc;
                     std::ofstream& output_file;
                 public:
-                    ArgVisitor(const Bytecode& _bc, std::ofstream& _output_file)
+                    ArgVisitor(const bytecode::Bytecode& _bc, std::ofstream& _output_file)
                     : bc{_bc}, output_file{_output_file}
                     {}
 
-                    void OnUnsigned(const BytecodeArg&) override {
+                    void OnUnsigned(const bytecode::BytecodeArg&) override {
                         DEBUGLN("Writing bytecode u64 arg");
                         writeU64(output_file, bc.GetUnsignedArg());
                     }
 
-                    void OnNone(const BytecodeArg&) override {
+                    void OnNone(const bytecode::BytecodeArg&) override {
                         // intentionally empty
                         DEBUGLN("No arg for bytecode");
                     }
@@ -116,7 +119,7 @@ public:
         writeU64(output_file, constant_count);
         for (std::uint64_t i = 0; i < constant_count; i++) {
             DEBUGLN("Writing constant " << i);
-            const Constant& constant = file.GetConstants().at(i);
+            const bytecode::Constant& constant = file.GetConstants().at(i);
             writeConstant(output_file, constant);
         }
 
@@ -133,25 +136,25 @@ private:
         }
     }
 
-    static void writeConstant(std::ofstream& stream, const Constant& constant) {
+    static void writeConstant(std::ofstream& stream, const bytecode::Constant& constant) {
 
-        struct Visitor : public ConstantVisitor {
+        struct Visitor : public bytecode::ConstantVisitor {
             std::ofstream& stream;
 
             Visitor(std::ofstream& _stream): stream{_stream} {}
 
-            void OnInteger(const Constant& constant) override {
-                writeU8(stream, static_cast<std::uint8_t>(ConstantType::Integer));
+            void OnInteger(const bytecode::Constant& constant) override {
+                writeU8(stream, static_cast<std::uint8_t>(bytecode::ConstantType::Integer));
                 writeU64(stream, constant.GetIntegerConstant());
             }
 
-            void OnString(const Constant& constant) override {
-                writeU8(stream, static_cast<std::uint8_t>(ConstantType::String));
+            void OnString(const bytecode::Constant& constant) override {
+                writeU8(stream, static_cast<std::uint8_t>(bytecode::ConstantType::String));
                 writeString(stream, constant.GetStringConstant());
             }
 
-            void OnInvocation(const Constant& constant) override {
-                writeU8(stream, static_cast<std::uint8_t>(ConstantType::Invocation));
+            void OnInvocation(const bytecode::Constant& constant) override {
+                writeU8(stream, static_cast<std::uint8_t>(bytecode::ConstantType::Invocation));
                 writeU64(stream, constant.GetInvocationConstant().GetModuleNameIndex());
                 writeU64(stream, constant.GetInvocationConstant().GetFunctionNameIndex());
                 writeU64(stream, constant.GetInvocationConstant().GetArgumentCount());
@@ -187,5 +190,7 @@ private:
         stream.write((const char*) &val, sizeof(std::uint8_t));
     }
 };
+
+}
 
 #endif // BYTECODE_WRITER_HH__

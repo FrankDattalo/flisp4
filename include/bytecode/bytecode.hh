@@ -7,9 +7,10 @@
 #include <string_view>
 #include <variant>
 
-#include "debug.hh"
+#include "util/debug.hh"
+#include "util/memory_semantic_macros.hh"
 
-#include "memory_semantic_macros.hh"
+namespace bytecode {
 
 #define PER_BYTECODE_TYPE(V) \
     V(Halt) \
@@ -103,7 +104,7 @@ class Bytecode;
 
 class BytecodeVisitor {
 public:
-#define DEFINE_VISITOR(val) virtual void On##val(const Bytecode& bc) = 0;
+#define DEFINE_VISITOR(val) virtual void On##val(const bytecode::Bytecode& bc) = 0;
     PER_BYTECODE_TYPE(DEFINE_VISITOR)
 #undef DEFINE_VISITOR
 };
@@ -477,6 +478,10 @@ private:
     std::vector<Function> functions;
     std::vector<Constant> constants;
 public:
+    File() {
+        version = 0;
+    }
+
     File(
         std::uint64_t _version,
         std::string _module_name,
@@ -505,5 +510,7 @@ public:
     const std::vector<Function>& GetFunctions() const { return functions; }
     const std::vector<Constant>& GetConstants() const { return constants; }
 };
+
+}
 
 #endif // BYTECODE_H__

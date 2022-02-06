@@ -4,9 +4,12 @@
 #include <stdexcept>
 #include <fstream>
 
-#include "memory_semantic_macros.hh"
+#include "util/memory_semantic_macros.hh"
+#include "util/debug.hh"
+
 #include "bytecode.hh"
-#include "debug.hh"
+
+namespace bytecode {
 
 class BytecodeReader {
 private:
@@ -20,7 +23,7 @@ public:
 
     NOT_MOVEABLE(BytecodeReader);
 
-    static File Read(const std::string & path) {
+    static bytecode::File Read(const std::string & path) {
         std::ifstream input_file;
         input_file.exceptions(std::ifstream::failbit | std::ifstream::badbit);
 
@@ -60,7 +63,7 @@ public:
         // read functions
         DEBUGLN("Reading functions");
         std::uint64_t fn_count = ReadU64(input_file);
-        std::vector<Function> fns;
+        std::vector<bytecode::Function> fns;
         DEBUGLN("Total of " << fn_count << " functions");
         fns.reserve(fn_count);
         for (std::uint64_t i = 0; i < fn_count; i++) {
@@ -71,7 +74,7 @@ public:
         // read string constants
         std::uint64_t constant_count = ReadU64(input_file);
         DEBUGLN("Reading constants");
-        std::vector<Constant> constants;
+        std::vector<bytecode::Constant> constants;
         DEBUGLN("Total of " << constant_count << " constants");
         constants.reserve(constant_count);
         for (std::uint64_t i = 0; i < constant_count; i++) {
@@ -80,7 +83,7 @@ public:
 
         DEBUGLN("Done reading compiled file");
 
-        return File{
+        return bytecode::File{
             version,
             std::move(module_name),
             std::move(import_names),
@@ -91,42 +94,42 @@ public:
     }
 
 private:
-    static Constant ReadConstant(std::ifstream& stream) {
+    static bytecode::Constant ReadConstant(std::ifstream& stream) {
         std::uint8_t constantTypeByte = ReadU8(stream);
 
         DEBUGLN("Leading constant type byte is " << constantTypeByte);
 
-        ConstantType constantType = static_cast<ConstantType>(constantTypeByte);
+        bytecode::ConstantType constantType = static_cast<bytecode::ConstantType>(constantTypeByte);
 
-        Constant constant(IntegerConstant{0}); // default initialize with some value
+        bytecode::Constant constant(bytecode::IntegerConstant{0}); // default initialize with some value
 
-        struct Visitor : public ConstantTypeVisitor {
-            Constant& constant;
+        struct Visitor : public bytecode::ConstantTypeVisitor {
+            bytecode::Constant& constant;
             std::ifstream& stream;
 
-            Visitor(Constant& _constant, std::ifstream& _stream)
+            Visitor(bytecode::Constant& _constant, std::ifstream& _stream)
             : constant{_constant}, stream{_stream}
             {}
 
-            void OnInteger(ConstantType) override {
-                constant = Constant(IntegerConstant{ReadI64(stream)});
+            void OnInteger(bytecode::ConstantType) override {
+                constant = bytecode::Constant(bytecode::IntegerConstant{ReadI64(stream)});
             }
 
-            void OnString(ConstantType) override {
-                constant = Constant(StringConstant{ReadString(stream)});
+            void OnString(bytecode::ConstantType) override {
+                constant = bytecode::Constant(bytecode::StringConstant{ReadString(stream)});
             }
 
-            void OnInvocation(ConstantType) override {
+            void OnInvocation(bytecode::ConstantType) override {
                 std::uint64_t module_name_index = ReadU64(stream);
                 std::uint64_t function_name_index = ReadU64(stream);
                 std::uint64_t parameter_count = ReadU64(stream);
-                Invocation c{module_name_index, function_name_index, parameter_count};
-                constant = Constant(InvocationConstant{std::move(c)});
+                bytecode::Invocation c{module_name_index, function_name_index, parameter_count};
+                constant = bytecode::Constant(bytecode::InvocationConstant{std::move(c)});
             }
 
         } visitor(constant, stream);
 
-        Constant::VisitType(constantType, visitor);
+        bytecode::Constant::VisitType(constantType, visitor);
 
         return constant;
     }
@@ -167,7 +170,7 @@ private:
         return data;
     }
 
-    static Function ReadFunction(std::ifstream& stream) {
+    static bytecode::Function ReadFunction(std::ifstream& stream) {
         DEBUGLN("Reading name");
         std::string name = ReadString(stream);
         DEBUGLN("name = " << name);
@@ -180,53 +183,55 @@ private:
         DEBUGLN("Reading bytecode length");
         std::uint64_t bytecode_length = ReadU64(stream);
         DEBUGLN("Total of " << bytecode_length << " bytecode");
-        std::vector<Bytecode> bytecode;
+        std::vector<bytecode::Bytecode> bytecode;
         bytecode.reserve(bytecode_length);
         for (std::uint64_t i = 0; i < bytecode_length; i++) {
             DEBUGLN("Reading bytecode " << i);
             bytecode.push_back(ReadBytecode(stream));
         }
-        return Function{name, arity, locals, std::move(bytecode)};
+        return bytecode::Function{name, arity, locals, std::move(bytecode)};
     }
 
-    static Bytecode ReadBytecode(std::ifstream& stream) {
+    static bytecode::Bytecode ReadBytecode(std::ifstream& stream) {
         std::uint8_t bytecode = ReadU8(stream);
 
         DEBUGLN("Leading bytecode tag " << static_cast<int>(bytecode));
 
-        BytecodeType type = static_cast<BytecodeType>(bytecode);
-        BytecodeArg arg;
+        bytecode::BytecodeType type = static_cast<bytecode::BytecodeType>(bytecode);
+        bytecode::BytecodeArg arg;
 
-        struct Visitor : public BytecodeArgTypeVisitor {
-            BytecodeArg& arg;
+        struct Visitor : public bytecode::BytecodeArgTypeVisitor {
+            bytecode::BytecodeArg& arg;
             std::ifstream& stream;
 
-            Visitor(BytecodeArg& _arg, std::ifstream& _stream)
+            Visitor(bytecode::BytecodeArg& _arg, std::ifstream& _stream)
             : arg{_arg}, stream{_stream}
             {}
 
-            void OnUnsigned(BytecodeArgType) override {
+            void OnUnsigned(bytecode::BytecodeArgType) override {
                 DEBUGLN("Reading unsigned arg");
                 std::uint64_t u = ReadU64(stream);
-                BytecodeArg result{u};
+                bytecode::BytecodeArg result{u};
                 arg = result;
             }
 
-            void OnNone(BytecodeArgType) override {
+            void OnNone(bytecode::BytecodeArgType) override {
                 // intentionally empty
                 DEBUGLN("No arg for this bytecode");;
             }
 
         } visitor(arg, stream);
 
-        DEBUGLN("Read bytecode " << Bytecode::TypeToString(type));
+        DEBUGLN("Read bytecode " << bytecode::Bytecode::TypeToString(type));
 
-        Bytecode::VisitArgType(type, visitor);
+        bytecode::Bytecode::VisitArgType(type, visitor);
 
-        return Bytecode{type, arg};
+        return bytecode::Bytecode{type, arg};
     }
 };
 
 static_assert(sizeof(char) == 1); // 1 byte
+
+}
 
 #endif // BYTECODE_READER_H__

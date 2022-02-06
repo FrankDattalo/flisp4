@@ -1,57 +1,49 @@
 #ifndef VM_HH__
 #define VM_HH__
 
-#include <memory>
+#include <optional>
 
-#include "bytecode.hh"
-#include "bytecode_reader.hh"
-#include "debug.hh"
+#include "bytecode/bytecode.hh"
+#include "util/debug.hh"
+#include "util/memory_semantic_macros.hh"
 #include "heap.hh"
 #include "object.hh"
 #include "stack.hh"
 #include "symbol_table.hh"
 #include "nativeregistry.hh"
+#include "fileregistry.hh"
 
-class VirtualMachine : public RootMarker {
+namespace runtime {
+
+class VirtualMachine {
 private:
-    File file;
+    FileRegistry files;
+    NativeFunctionRegistry natives;
+    CallStack stack;
     Heap heap;
-    NativeFunctionRegistry registry;
-    std::unique_ptr<StackFrame> frame;
 public:
-    VirtualMachine(File _file, std::uint64_t heap_size) 
-    : file{std::move(_file)}
-    , heap{heap_size}
-    {
+    VirtualMachine() : heap{1000} /* TODO change this */ {
         registerNatives();
     }
 
     virtual ~VirtualMachine() = default;
 
+    NOT_COPYABLE(VirtualMachine);
+    NOT_MOVEABLE(VirtualMachine);
+
     void Run() {
         DEBUGLN("Beginning vm");
         DEBUGLN("Adding root marker");
-        heap.AddRootMarker(this);
+        heap.AddRootMarker(&stack);
         DEBUGLN("Adding initial frame");
-        pushFrame(getEntrypoint());
+        stack.Push(getEntrypoint());
         DEBUGLN("Entering main loop");
         loop();
         DEBUGLN("Main loop terminated");
     }
 
-    void Mark(Heap* heap) override {
-        DEBUGLN("Marking root objects");
-        StackFrame* frame = this->frame.get();
-        while (frame != nullptr) {
-            DEBUGLN("Marking stack frame roots");
-            frame->Mark(heap);
-            frame = frame->GetNullableOuter();
-        }
-        DEBUGLN("Finished marking root objects");
-    }
-
     void RegisterNativeFunction(NativeFunction fn) {
-        this->registry.Register(std::move(fn));
+        natives.Register(std::move(fn));
     }
 
 private:
@@ -63,15 +55,16 @@ private:
         }
 
         while (true) {
-            std::size_t pc = this->frame->GetProgramCounter();
+            StackFrame* frame = stack.CurrentFrame();
+            std::size_t pc = frame->GetProgramCounter();
 
             DEBUGLN("PC: " << pc);
 
-            const Bytecode& bc = this->frame->GetFunction()->GetBytecode().at(pc);
+            const bytecode::Bytecode& bc = frame->GetBytecode(pc);
 
             DEBUGLN("Loaded bytecode: " << bc.GetTypeToString());
 
-            bool terminate = applyBytecode(bc);
+            bool terminate = applyBytecode(frame, bc);
             if (terminate) {
                 break;
             }
@@ -84,51 +77,56 @@ private:
         }
     }
 
-    bool applyBytecode(const Bytecode& bc) {
+    bool applyBytecode(StackFrame* frame, const bytecode::Bytecode& bc) {
         bool terminate = false;
 
-        struct Visitor : public BytecodeVisitor {
-            VirtualMachine& self;
+        struct Visitor : public bytecode::BytecodeVisitor {
+            VirtualMachine* self;
+            StackFrame* frame;
             bool& terminate;
 
-            Visitor(VirtualMachine& _self, bool& _terminate)
-            : self{_self}, terminate{_terminate}
+            Visitor(VirtualMachine* _self, StackFrame* _frame, bool& _terminate)
+            : self{_self}, frame{_frame}, terminate{_terminate}
             {}
 
-            void OnJumpIfFalse(const Bytecode& bc) override { DEBUGLN("JumpIfFalse"); self.JumpIfFalse(bc); }
-            void OnJump(const Bytecode& bc) override { DEBUGLN("Jump"); self.Jump(bc); }
-            void OnLoadNil(const Bytecode& bc) override { DEBUGLN("LoadNil"); self.LoadNil(bc); }
-            void OnReturn(const Bytecode& bc) override { DEBUGLN("Return"); self.Return(bc); }
-            void OnLoadLocal(const Bytecode& bc) override { DEBUGLN("LoadLocal"); self.LoadLocal(bc); }
-            void OnStoreLocal(const Bytecode& bc) override { DEBUGLN("StoreLocal"); self.StoreLocal(bc); }
-            void OnLoadInteger(const Bytecode& bc) override { DEBUGLN("LoadInteger"); self.LoadInteger(bc); }
-            void OnLoadString(const Bytecode& bc) override { DEBUGLN("LoadString"); self.LoadString(bc); }
-            void OnLoadTrue(const Bytecode& bc) override { DEBUGLN("LoadTrue"); self.LoadTrue(bc); }
-            void OnLoadFalse(const Bytecode& bc) override { DEBUGLN("LoadFalse"); self.LoadFalse(bc); }
-            void OnInvoke(const Bytecode& bc) override { DEBUGLN("Invoke"); self.Invoke(bc); }
-            void OnPop(const Bytecode& bc) override { DEBUGLN("Pop"); self.Pop(bc); }
-            void OnHalt(const Bytecode& bc) override { DEBUGLN("Halt"); terminate = true; }
-        };
+            void OnJumpIfFalse(const bytecode::Bytecode& bc) override { DEBUGLN("JumpIfFalse"); self->JumpIfFalse(frame, bc); }
+            void OnJump(const bytecode::Bytecode& bc) override { DEBUGLN("Jump"); self->Jump(frame, bc); }
+            void OnLoadNil(const bytecode::Bytecode& bc) override { DEBUGLN("LoadNil"); self->LoadNil(frame, bc); }
+            void OnReturn(const bytecode::Bytecode& bc) override { DEBUGLN("Return"); self->Return(frame, bc); }
+            void OnLoadLocal(const bytecode::Bytecode& bc) override { DEBUGLN("LoadLocal"); self->LoadLocal(frame, bc); }
+            void OnStoreLocal(const bytecode::Bytecode& bc) override { DEBUGLN("StoreLocal"); self->StoreLocal(frame, bc); }
+            void OnLoadInteger(const bytecode::Bytecode& bc) override { DEBUGLN("LoadInteger"); self->LoadInteger(frame, bc); }
+            void OnLoadString(const bytecode::Bytecode& bc) override { DEBUGLN("LoadString"); self->LoadString(frame, bc); }
+            void OnLoadTrue(const bytecode::Bytecode& bc) override { DEBUGLN("LoadTrue"); self->LoadTrue(frame, bc); }
+            void OnLoadFalse(const bytecode::Bytecode& bc) override { DEBUGLN("LoadFalse"); self->LoadFalse(frame, bc); }
+            void OnInvoke(const bytecode::Bytecode& bc) override { DEBUGLN("Invoke"); self->Invoke(frame, bc); }
+            void OnPop(const bytecode::Bytecode& bc) override { DEBUGLN("Pop"); self->Pop(frame, bc); }
+            void OnHalt(const bytecode::Bytecode& bc) override { DEBUGLN("Halt"); terminate = true; }
+
+        } visitor(this, frame, terminate);
+
+        bc.Visit(visitor);
 
         return terminate;
     }
 
-    void LoadLocal(const Bytecode& bc) {
-        this->frame->Push(this->frame->GetLocal(bc.GetUnsignedArg()));
-        this->frame->AdvanceProgramCounter();
+    void LoadLocal(StackFrame* frame, const bytecode::Bytecode& bc) {
+        frame->Push(frame->GetLocal(bc.GetUnsignedArg()));
+        frame->AdvanceProgramCounter();
     }
 
-    void StoreLocal(const Bytecode& bc) {
-        this->frame->SetLocal(bc.GetUnsignedArg(), this->frame->Pop());
-        this->frame->AdvanceProgramCounter();
+    void StoreLocal(StackFrame* frame, const bytecode::Bytecode& bc) {
+        frame->SetLocal(bc.GetUnsignedArg(), frame->Pop());
+        frame->AdvanceProgramCounter();
     }
 
-    void Pop(const Bytecode& bc) {
-        this->frame->Pop();
-        this->frame->AdvanceProgramCounter();
+    void Pop(StackFrame* frame, const bytecode::Bytecode& bc) {
+        frame->Pop();
+        frame->AdvanceProgramCounter();
     }
 
-    void LoadString(const Bytecode& bc) {
+    void LoadString(StackFrame* frame, const bytecode::Bytecode& bc) {
+        frame->Get
         const std::string& str = this->file.GetConstants().at(bc.GetUnsignedArg()).GetStringConstant();
         Object* result = this->heap.AllocateString(str);
         Object tmp;
@@ -137,7 +135,7 @@ private:
         this->frame->AdvanceProgramCounter();
     }
 
-    // void InvokeNative(const Bytecode& bc) {
+    // void InvokeNative(const bytecode::Bytecode& bc) {
     //     std::uint64_t num_args = this->frame->Pop().GetUnsignedInteger();
     //     const std::string& native_fn_name = this->file.GetConstants().at(bc.GetUnsignedArg()).GetStringConstant();
     //     const NativeFunction& fn = this->registry.Get(native_fn_name);
@@ -149,7 +147,7 @@ private:
     //     this->frame->AdvanceProgramCounter();
     // }
 
-    // void InvokeFunction(const Bytecode& bc) {
+    // void InvokeFunction(const bytecode::Bytecode& bc) {
     //     const Function& fn = this->file.GetFunctions().at(bc.GetUnsignedArg());
     //     std::uint64_t num_args = this->frame->Pop().GetUnsignedInteger();
     //     if (fn.GetArity() != num_args) {
@@ -166,11 +164,11 @@ private:
     //     }
     // }
 
-    void Invoke(const Bytecode& bc) {
+    void Invoke(const bytecode::Bytecode& bc) {
         // TODO
     }
 
-    void JumpIfFalse(const Bytecode& bc) {
+    void JumpIfFalse(const bytecode::Bytecode& bc) {
         Object res = this->frame->Pop();
         if (res.IsType(ObjectType::Boolean) && !res.GetBoolean()) {
             this->frame->SetProgramCounter(bc.GetUnsignedArg());
@@ -179,37 +177,37 @@ private:
         }
     }
 
-    void Jump(const Bytecode& bc) {
+    void Jump(const bytecode::Bytecode& bc) {
         this->frame->SetProgramCounter(bc.GetUnsignedArg());
     }
 
-    void LoadTrue(const Bytecode& bc) {
+    void LoadTrue(const bytecode::Bytecode& bc) {
         Object temp;
         temp.SetBoolean(true);
         this->frame->Push(temp);
         this->frame->AdvanceProgramCounter();
     }
 
-    void LoadFalse(const Bytecode& bc) {
+    void LoadFalse(const bytecode::Bytecode& bc) {
         Object temp;
         temp.SetBoolean(false);
         this->frame->Push(temp);
         this->frame->AdvanceProgramCounter();
     }
 
-    void LoadNil(const Bytecode& bc) {
+    void LoadNil(const bytecode::Bytecode& bc) {
         this->frame->Push(Object{});
         this->frame->AdvanceProgramCounter();
     }
 
-    void LoadInteger(const Bytecode& bc) {
+    void LoadInteger(const bytecode::Bytecode& bc) {
         Object temp;
         temp.SetInteger(this->file.GetConstants().at(bc.GetUnsignedArg()).GetIntegerConstant());
         this->frame->Push(temp);
         this->frame->AdvanceProgramCounter();
     }
 
-    void Return(const Bytecode& bc) {
+    void Return(const bytecode::Bytecode& bc) {
         Object ret = this->frame->Pop();
         this->frame = this->frame->GetOuter();
         this->frame->Push(ret);
@@ -220,7 +218,7 @@ private:
         this->frame = std::make_unique<StackFrame>(std::move(this->frame), fn);
     }
 
-    const Function* getEntrypoint() {
+    const bytecode::Function* getEntrypoint() {
         // TODO: separate this into some other validation class
         if (this->file.GetFunctions().size() == 0) {
             throw std::runtime_error{std::string{"No functions defined in file"}};
@@ -229,6 +227,13 @@ private:
         if (result->GetArity() != 0) {
             throw std::runtime_error{std::string{"Expected entrypoint function to have arity of 0"}};
         }
+
+        auto result = files.LookupFunction("main", "main");
+        if (result == std::nullopt) {
+            throw std::runtime_error{std::string{"No main/main function defined"}};
+        }
+
+
         return result;
     }
 
@@ -257,7 +262,7 @@ private:
         std::cout << "| BYTECODE \n";
         for (std::size_t i = 0; i < frame->GetFunction()->GetBytecode().size(); i++) {
             std::cout << "| [" << i << "] ";
-            const Bytecode& bc = frame->GetFunction()->GetBytecode().at(i);
+            const bytecode::Bytecode& bc = frame->GetFunction()->GetBytecode().at(i);
             std::cout << bc.GetTypeToString() << " " << bc.ArgToString();
             if (i == frame->GetProgramCounter()) {
                 std::cout << " <~~~~~~~~~~~~~~~~~~";
@@ -301,5 +306,7 @@ private:
         vm->frame->Push(obj);
     }
 };
+
+}
 
 #endif // VM_H__

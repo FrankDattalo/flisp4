@@ -5,7 +5,9 @@
 #include <map>
 #include <mutex>
 
-#include "memory_semantic_macros.hh"
+#include "util/memory_semantic_macros.hh"
+
+namespace runtime {
 
 class SymbolTable {
 private:
@@ -54,5 +56,7 @@ public:
         return iter->second;
     }
 };
+
+}
 
 #endif // SYMBOL_TABLE_H__

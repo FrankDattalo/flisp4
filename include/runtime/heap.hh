@@ -5,8 +5,11 @@
 #include <vector>
 #include <cstring>
 
-#include "memory_semantic_macros.hh"
+#include "util/memory_semantic_macros.hh"
+
 #include "object.hh"
+
+namespace runtime {
 
 class SemiSpace;
 class SemiSpaceIterator;
@@ -116,6 +119,7 @@ public:
 
     // Allocates a string on the heap and returns a pointer to the object header
     Object* AllocateString(const std::string& str) {
+        // TODO: change this
         DEBUGLN("Allocating string '" << str << "'");
         std::uint64_t total_allocation_elements = str.length() + 2;
         Object* result = Allocate(total_allocation_elements);
@@ -264,5 +268,6 @@ void Heap::Gc() {
     passive->Clear();
 }
 
+}
 
 #endif // HEAP_H__

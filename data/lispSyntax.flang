@@ -1,0 +1,28 @@
+(module languageFeatures)
+
+(import native)
+(import apple)
+
+(export main)
+
+(fn (main)
+    (define noodle 2)
+    (greet noodle)
+    (set! noodle 3))
+
+(fn (looper)
+    (apple/sauce)
+    (native/println "Hello, Before!")
+    (do (true)
+        (native/println "Hello, World!"))
+    (native/println "Hello, After!"))
+
+(fn (greet p)
+    (if p
+        (begin
+            (native/println "Hello, True")
+            1)
+        (begin
+            (native/println "Hello, False")
+            2)))
+

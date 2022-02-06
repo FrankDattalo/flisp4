@@ -5,11 +5,12 @@
 #include <map>
 #include <stdexcept>
 
-#include "debug.hh"
-
-#include "memory_semantic_macros.hh"
+#include "util/debug.hh"
+#include "util/memory_semantic_macros.hh"
 
 class VirtualMachine;
+
+namespace runtime {
 
 using NativeFunctionHandle = void (*)(VirtualMachine* vm);
 
@@ -67,5 +68,7 @@ public:
         this->fns.insert({name, std::move(native_fn)});
     }
 };
+
+}
 
 #endif // NATIVE_REGISTRY_HH__
