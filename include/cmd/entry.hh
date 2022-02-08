@@ -13,6 +13,8 @@
 #include "execute.hh"
 #include "assemble.hh"
 
+#include "refactor/object.hh"
+
 namespace cmd {
 
 std::vector<std::string> getArgs(int argc, char** argv) {
