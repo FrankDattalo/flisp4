@@ -7,34 +7,34 @@ using namespace runtime;
 
 int main(int argc, char** argv) {
     // return cmd::entry(argc, argv);
-    struct Visitor : Object::Visitor {
-        void OnNil(const Object* obj) {
+    struct Visitor : Primitive::Visitor {
+        void OnNil(const Primitive* obj) {
             std::cout << "nil" << std::endl;
         }
-        void OnInteger(const Object* obj) {
+        void OnInteger(const Primitive* obj) {
             std::cout << "integer " << obj->GetInteger() << std::endl;
         }
-        void OnReal(const Object* obj) {
+        void OnReal(const Primitive* obj) {
             std::cout << "real " << obj->GetReal() << std::endl;
         }
-        void OnSymbol(const Object* obj) {
+        void OnSymbol(const Primitive* obj) {
             std::cout << "symbol " << obj->GetSymbol() << std::endl;
         }
-        void OnReference(const Object* obj) {
+        void OnReference(const Primitive* obj) {
             std::cout << "reference " << obj->GetReference() << std::endl;
         }
-        void OnBoolean(const Object* obj) {
+        void OnBoolean(const Primitive* obj) {
             std::cout << "boolean " << (obj->GetBoolean() ? "true" : "false") << std::endl;
         }
-        void OnCharacter(const Object* obj) {
+        void OnCharacter(const Primitive* obj) {
             std::cout << "char " << obj->GetCharacter() << std::endl;
         }
-        void OnNativeReference(const Object* obj) {
+        void OnNativeReference(const Primitive* obj) {
             std::cout << "native " << obj->GetNativeReference() << std::endl;
         }
     } visitor;
 
-    Object obj;
+    Primitive obj;
     obj.Visit(visitor);
 
     obj.SetInteger(1);
@@ -46,7 +46,7 @@ int main(int argc, char** argv) {
     obj.SetReference(nullptr);
     obj.Visit(visitor);
 
-    HeapObject ref;
+    Object ref;
     obj.SetReference(&ref);
     obj.Visit(visitor);
 

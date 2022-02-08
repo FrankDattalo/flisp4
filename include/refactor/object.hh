@@ -11,18 +11,12 @@
 
 namespace runtime {
 
-typedef std::uint64_t symbol_id_t;
-typedef std::int64_t integer_t;
-typedef std::uint32_t uinteger_t;
-typedef char char_t;
-typedef float real_t;
+static_assert(sizeof(std::int64_t) == 2 * sizeof(std::uint32_t));
+static_assert(std::numeric_limits<std::int64_t>::max() >= std::numeric_limits<std::uint32_t>::max());
 
-static_assert(sizeof(integer_t) == 2 * sizeof(uinteger_t));
-static_assert(std::numeric_limits<integer_t>::max() >= std::numeric_limits<uinteger_t>::max());
+class Object;
 
-class HeapObject;
-
-class Object {
+class Primitive {
 public:
     #define PER_OBJECT_TYPE(V) \
         V(Nil) \
@@ -40,26 +34,26 @@ public:
         #undef COMMA
     };
 private:
-    constexpr static integer_t TYPE_TAG = 0b111;
-    constexpr static integer_t DATA_TAG = ~TYPE_TAG;
+    constexpr static std::int64_t TYPE_TAG = 0b111;
+    constexpr static std::int64_t DATA_TAG = ~TYPE_TAG;
     constexpr static int TYPE_TAG_SIZE = 3; // in bits
-    constexpr static integer_t MAX_INT = std::numeric_limits<integer_t>::max() >> TYPE_TAG_SIZE;
-    constexpr static integer_t MIN_INT = std::numeric_limits<integer_t>::min() >> TYPE_TAG_SIZE;
-    constexpr static integer_t MAX_SYMBOL = std::numeric_limits<symbol_id_t>::max() >> TYPE_TAG_SIZE;
+    constexpr static std::int64_t MAX_INT = std::numeric_limits<std::int64_t>::max() >> TYPE_TAG_SIZE;
+    constexpr static std::int64_t MIN_INT = std::numeric_limits<std::int64_t>::min() >> TYPE_TAG_SIZE;
+    constexpr static std::int64_t MAX_SYMBOL = std::numeric_limits<std::uint64_t>::max() >> TYPE_TAG_SIZE;
 
-    constexpr static symbol_id_t REFERENCE_TAG = 0b000;
-    constexpr static symbol_id_t INTEGER_TAG   = 0b001;
-    constexpr static symbol_id_t SYMBOL_TAG    = 0b010;
-    constexpr static symbol_id_t BOOLEAN_TAG   = 0b011;
-    constexpr static symbol_id_t CHAR_TAG      = 0b100;
-    constexpr static symbol_id_t REAL_TAG      = 0b101;
-    constexpr static symbol_id_t NATIVE_TAG    = 0b110;
+    constexpr static std::uint64_t REFERENCE_TAG = 0b000;
+    constexpr static std::uint64_t INTEGER_TAG   = 0b001;
+    constexpr static std::uint64_t SYMBOL_TAG    = 0b010;
+    constexpr static std::uint64_t BOOLEAN_TAG   = 0b011;
+    constexpr static std::uint64_t CHAR_TAG      = 0b100;
+    constexpr static std::uint64_t REAL_TAG      = 0b101;
+    constexpr static std::uint64_t NATIVE_TAG    = 0b110;
 
     union {
-        symbol_id_t _data;
+        std::uint64_t _data; // all non float data is here
         struct {
-            real_t _buffer;
-            real_t _real;
+            float _buffer; // this doesnt hold any real data
+            float _real;   // all float data is here
         };
     };
 
@@ -74,31 +68,32 @@ private:
         NativeReference - 64 bit pointer, tagged in palce with reference tag, acessed by removing tag
     */
 public:
-    Object() {
+    Primitive() {
+        // initialize to nil
         SetReference(nullptr);
     }
 
-    ~Object() = default;
+    ~Primitive() = default;
 
-    void SetInteger(integer_t value) {
+    void SetInteger(std::int64_t value) {
         checkSize(value);
-        symbol_id_t data = *reinterpret_cast<symbol_id_t*>(&value);
+        std::uint64_t data = *reinterpret_cast<std::uint64_t*>(&value);
         replace(data << TYPE_TAG_SIZE, INTEGER_TAG);
     }
 
-    integer_t GetInteger() const {
-        checkType(Object::Type::Integer);
+    std::int64_t GetInteger() const {
+        checkType(Primitive::Type::Integer);
         return getIntegerData();
     }
 
-    void SetSymbol(symbol_id_t value) {
+    void SetSymbol(std::uint64_t value) {
         checkSize(value);
         replace(value << TYPE_TAG_SIZE, SYMBOL_TAG);
     }
 
-    symbol_id_t GetSymbol() const {
-        checkType(Object::Type::Symbol);
-        symbol_id_t value = data(this->_data) >> TYPE_TAG_SIZE;
+    std::uint64_t GetSymbol() const {
+        checkType(Primitive::Type::Symbol);
+        std::uint64_t value = data(this->_data) >> TYPE_TAG_SIZE;
         return value;
     }
 
@@ -108,38 +103,38 @@ public:
     }
 
     bool GetBoolean() const {
-        checkType(Object::Type::Boolean);
+        checkType(Primitive::Type::Boolean);
         return getIntegerData();
     }
 
-    void SetCharacter(char_t value) {
+    void SetCharacter(char value) {
         SetInteger(value);
         replaceTag(CHAR_TAG);
     }
 
-    char_t GetCharacter() const {
-        checkType(Object::Type::Character);
+    char GetCharacter() const {
+        checkType(Primitive::Type::Character);
         return getIntegerData();
     }
 
-    void SetReal(real_t real) {
+    void SetReal(float real) {
         this->_data = 0;
         this->_real = real;
         replaceTag(REAL_TAG);
     }
 
-    real_t GetReal() const {
-        checkType(Object::Type::Real);
+    float GetReal() const {
+        checkType(Primitive::Type::Real);
         return this->_real;
     }
 
-    void SetReference(HeapObject* ptr) {
+    void SetReference(Object* ptr) {
         checkAlignment(ptr);
         replace(pointerData(ptr), REFERENCE_TAG);
     }
 
-    HeapObject* GetReference() const {
-        checkType(Object::Type::Reference);
+    Object* GetReference() const {
+        checkType(Primitive::Type::Reference);
         return getPointerData(data(this->_data));
     }
 
@@ -149,17 +144,17 @@ public:
     }
 
     void* GetNativeReference() const {
-        checkType(Object::Type::NativeReference);
+        checkType(Primitive::Type::NativeReference);
         return getNativePointerData(data(this->_data));
     }
 
-    Object::Type GetType() const {
+    Primitive::Type GetType() const {
         return getType();
     }
 
-    std::string static ObjectTypeToString(Object::Type type) {
+    std::string static TypeToString(Primitive::Type type) {
         switch (type) {
-            #define ADD_CASE(v) case Object::Type::v: return #v;
+            #define ADD_CASE(v) case Primitive::Type::v: return #v;
             PER_OBJECT_TYPE(ADD_CASE)
             #undef ADD_CASE
             default: throw std::runtime_error{"This should never happen in ObjectTypeToString"};
@@ -170,7 +165,7 @@ public:
 
     void Visit(Visitor& visitor) const {
         switch (GetType()) {
-            #define ADD_CASE(v) case Object::Type::v: { visitor.On##v(this); return; }
+            #define ADD_CASE(v) case Primitive::Type::v: { visitor.On##v(this); return; }
             PER_OBJECT_TYPE(ADD_CASE)
             #undef ADD_CASE
             default: throw std::runtime_error{"This should never happen in Visit"};
@@ -180,21 +175,21 @@ public:
     class Visitor {
     public:
         virtual ~Visitor() = default;
-        #define ADD_CASE(v) virtual void On##v(const Object* obj) = 0;
+        #define ADD_CASE(v) virtual void On##v(const Primitive* obj) = 0;
         PER_OBJECT_TYPE(ADD_CASE)
         #undef ADD_CASE
     };
 
 private:
     static void checkAlignment(void* ptr) {
-        symbol_id_t casted = *reinterpret_cast<symbol_id_t*>(&ptr);
-        symbol_id_t type_bits = casted & TYPE_TAG;
+        std::uint64_t casted = *reinterpret_cast<std::uint64_t*>(&ptr);
+        std::uint64_t type_bits = casted & TYPE_TAG;
         if (type_bits != 0) {
             throw std::runtime_error{"Unable to store unaligned pointer"};
         }
     }
 
-    static void checkSize(symbol_id_t val) {
+    static void checkSize(std::uint64_t val) {
         if (val > MAX_SYMBOL) {
             std::stringstream str;
             str << "Symbol id " << std::to_string(val)
@@ -203,7 +198,7 @@ private:
         }
     }
 
-    static void checkSize(integer_t val) {
+    static void checkSize(std::int64_t val) {
         if (val < MIN_INT) {
             std::stringstream str;
             str << "Integer " << std::to_string(val)
@@ -218,155 +213,189 @@ private:
         }
     }
 
-    void checkType(Object::Type expected) const {
-        Object::Type actual = getType();
+    void checkType(Primitive::Type expected) const {
+        Primitive::Type actual = getType();
         if (actual != expected) {
             std::stringstream str;
             str << "Incorrect type. "
-                << "Wanted: " << ObjectTypeToString(expected)
-                << "Was: "    << ObjectTypeToString(actual);
+                << "Wanted: " << TypeToString(expected)
+                << "Was: "    << TypeToString(actual);
             throw std::runtime_error{str.str()};
         }
     }
 
-    Object::Type getType() const {
-        symbol_id_t type_tag = type(this->_data);
+    Primitive::Type getType() const {
+        std::uint64_t type_tag = type(this->_data);
         switch (type_tag) {
             case REFERENCE_TAG: {
-                HeapObject* ptr = getPointerData(data(this->_data));
+                Object* ptr = getPointerData(data(this->_data));
                 if (ptr == nullptr) {
-                    return Object::Type::Nil;
+                    return Primitive::Type::Nil;
                 } else {
-                    return Object::Type::Reference;
+                    return Primitive::Type::Reference;
                 }
             }
-            case INTEGER_TAG  : return Object::Type::Integer;
-            case SYMBOL_TAG   : return Object::Type::Symbol;
-            case BOOLEAN_TAG  : return Object::Type::Boolean;
-            case CHAR_TAG     : return Object::Type::Character;
-            case REAL_TAG     : return Object::Type::Real;
-            case NATIVE_TAG   : return Object::Type::NativeReference;
+            case INTEGER_TAG  : return Primitive::Type::Integer;
+            case SYMBOL_TAG   : return Primitive::Type::Symbol;
+            case BOOLEAN_TAG  : return Primitive::Type::Boolean;
+            case CHAR_TAG     : return Primitive::Type::Character;
+            case REAL_TAG     : return Primitive::Type::Real;
+            case NATIVE_TAG   : return Primitive::Type::NativeReference;
             default: throw std::runtime_error{"This should never happen in getType"};
         }
     }
 
-    integer_t getIntegerData() const {
-        symbol_id_t uncasted = data(this->_data);
-        integer_t unshifted = *reinterpret_cast<integer_t*>(&uncasted);
-        integer_t shifted = unshifted >> TYPE_TAG_SIZE;
+    std::int64_t getIntegerData() const {
+        std::uint64_t uncasted = data(this->_data);
+        std::int64_t unshifted = *reinterpret_cast<std::int64_t*>(&uncasted);
+        std::int64_t shifted = unshifted >> TYPE_TAG_SIZE;
         return shifted;
     }
 
-
-    static symbol_id_t pointerData(void* ptr) { 
-        return *reinterpret_cast<symbol_id_t*>(&ptr); 
+    static std::uint64_t pointerData(void* ptr) { 
+        return *reinterpret_cast<std::uint64_t*>(&ptr); 
     }
 
-    static HeapObject* getPointerData(symbol_id_t data) { 
-        return *reinterpret_cast<HeapObject**>(&data);
+    static Object* getPointerData(std::uint64_t data) { 
+        return *reinterpret_cast<Object**>(&data);
     }
 
-    static void* getNativePointerData(symbol_id_t data) { 
+    static void* getNativePointerData(std::uint64_t data) { 
         return *reinterpret_cast<void**>(&data);
     }
 
-    static symbol_id_t data(symbol_id_t value) { return value & DATA_TAG; }
-    static symbol_id_t type(symbol_id_t value) { return value & TYPE_TAG; }
-    static symbol_id_t join(symbol_id_t _data, symbol_id_t _tag) { return data(_data) | type(_tag); }
+    static std::uint64_t data(std::uint64_t value) { return value & DATA_TAG; }
+    static std::uint64_t type(std::uint64_t value) { return value & TYPE_TAG; }
+    static std::uint64_t join(std::uint64_t _data, std::uint64_t _tag) { return data(_data) | type(_tag); }
 
-    void replace(symbol_id_t value, symbol_id_t tag) {
+    void replace(std::uint64_t value, std::uint64_t tag) {
         this->_data = join(data(value), type(tag));
     }
 
-    void replaceTag(symbol_id_t tag) {
+    void replaceTag(std::uint64_t tag) {
         this->_data = join(data(this->_data), type(tag));
     }
 };
 
-static_assert(sizeof(Object) == sizeof(integer_t));
+static_assert(sizeof(Primitive) == sizeof(std::int64_t));
 
-enum class HeapObjectType {
+/*
+    Object - base class for all heap
+        SlottedObject - represents a heap object that is an array of slots
+            Structure - represents a fixed size array of slots
+                Pair - basic list pair
+                Map - key value lookup
+                MapNode - node in map
+                Environment - representings the envrionment
+                Stack - stack data structure
+                Frame - invocation frame
+            Vector - scheme vector
+            String - string
 
-};
-
-class HeapObject {
+*/
+class Object {
+public:
+    enum class Type {
+        Pair,
+        Vector,
+        String,
+        Map,
+        MapNode,
+        Envrionment,
+        Stack,
+        Frame
+    };
 private:
-    uinteger_t type;
-    uinteger_t allocation_size;
+    std::uint32_t type;
+    std::uint32_t allocation_size;
 protected:
-    HeapObjectType GetType() const;
-    uinteger_t GetAllocationSize() const;
-    Object GetSlot(uinteger_t index) const;
-    void SetSlot(uinteger_t index, Object val);
+    Type GetType() const;
+    std::uint32_t GetAllocationSize() const;
 };
 
-static_assert(sizeof(HeapObject) == sizeof(std::int64_t));
-static_assert(sizeof(HeapObject) == sizeof(Object));
-static_assert(sizeof(HeapObject) % 8 == 0);
+static_assert(sizeof(Object) == sizeof(std::int64_t));
+static_assert(sizeof(Object) == sizeof(Object));
+static_assert(sizeof(Object) % 8 == 0);
 
-class Pair : public HeapObject {
+class SlottedObject : public Object {
+protected:
+    Primitive& SlotRef(std::size_t i);
+    Primitive GetSlot(std::size_t i) const;
+};
+
+static_assert(sizeof(SlottedObject) == sizeof(Object));
+
+template<std::size_t N>
+class Structure : public SlottedObject {
+};
+
+#define FIELD(number, name) Primitive& name() { return SlotRef(number); }
+
+class Pair : public Structure<2> {
 private:
+    FIELD(0, first);
+    FIELD(1, second);
 };
 
-static_assert(sizeof(Pair) == sizeof(HeapObject));
+static_assert(sizeof(Pair) == sizeof(Object));
 
-class Vector : public HeapObject {
+class Vector : public SlottedObject {
 public:
-    Object GetLength() const { return GetSlot(0); }
-    Object GetItem(std::uint32_t index) const { return GetSlot(index + 1); }
+    Primitive GetLength() const { return GetSlot(0); }
+    Primitive GetItem(std::uint32_t index) const { return GetSlot(index + 1); }
 };
 
-static_assert(sizeof(Vector) == sizeof(HeapObject));
+static_assert(sizeof(Vector) == sizeof(Object));
 
-class String : public HeapObject {
+class String : public SlottedObject {
 private:
-    Object GetLength() const { return GetSlot(0); }
-    Object GetChar(std::uint32_t index) const { return GetSlot(index + 1); }
+    Primitive GetLength() const { return GetSlot(0); }
+    Primitive GetChar(std::uint32_t index) const { return GetSlot(index + 1); }
 };
 
-static_assert(sizeof(String) == sizeof(HeapObject));
+static_assert(sizeof(String) == sizeof(Object));
 
-class Map : public HeapObject {
+class Map : public Structure<2> {
 private:
-    Object GetHead() const { return GetSlot(0); }
-    Object GetSize() const { return GetSlot(1); }
+    FIELD(0, head);
+    FIELD(1, size);
 public:
-    Object Lookup(Object key) const;
-    void Insert(Object key, Object value);
+    Primitive Lookup(Primitive key) const;
+    void Insert(Primitive key, Primitive value);
 };
 
-static_assert(sizeof(Map) == sizeof(HeapObject));
+static_assert(sizeof(Map) == sizeof(Object));
 
-class Envrionment : public HeapObject {
+class Envrionment : public Structure<2> {
 private:
-    Object GetLookup() { return GetSlot(0); }
-    Object GetOuter() { return GetSlot(1); }
+    FIELD(0, outer);
+    FIELD(1, lookup);
 
 public:
     Map GetLookup() const;
-    Object GetOuter() const;
+    Primitive GetOuter() const;
 };
 
-static_assert(sizeof(Envrionment) == sizeof(HeapObject));
+static_assert(sizeof(Envrionment) == sizeof(Object));
 
-class Stack : public HeapObject {
+class Stack : public Structure<2> {
 private:
-    Object GetHead() { return GetSlot(0); }
-    Object GetSize() { return GetSlot(1); }
+    FIELD(0, head);
+    FIELD(1, size);
 
 public:
-    void Push(Object obj);
-    Object Pop();
-    Object Size() const;
+    void Push(Primitive obj);
+    Primitive Pop();
+    Primitive Size() const;
 };
 
-static_assert(sizeof(Stack) == sizeof(HeapObject));
+static_assert(sizeof(Stack) == sizeof(Object));
 
-class Frame : public HeapObject {
+class Frame : public Structure<3> {
 private:
-    Envrionment GetEnv() const;
-    Object GetOuter() const;
-    Stack GetStack() const;
+    FIELD(0, env);
+    FIELD(1, outer);
+    FIELD(2, stack);
 };
 
 }
