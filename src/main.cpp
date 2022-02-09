@@ -1,5 +1,5 @@
 // #include "cmd/entry.hh"
-#include "refactor/object.hh"
+#include "refactor/objects/primitive.hh"
 #include "refactor/heap.hh"
 
 #include <iostream>
@@ -39,10 +39,8 @@ void print(Primitive p) {
             std::cout << "\"";
         }
         void OnMap(const Object* obj) override { std::cout << "todo"; }
-        void OnMapNode(const Object* obj) override { std::cout << "todo"; }
         void OnEnvrionment(const Object* obj) override { std::cout << "todo"; }
         void OnStack(const Object* obj) override { std::cout << "todo"; }
-        void OnGcForward(const Object* obj) override { std::cout << "todo"; }
         void OnFrame(const Object* obj) override { std::cout << "todo"; }
     } obj_visitor;
 

@@ -1,17 +1,9 @@
 #ifndef HEAP_HH__
 #define HEAP_HH__
 
-#include <stdexcept>
-#include <vector>
-#include <cstring>
-#include <memory>
-#include <array>
-#include <vector>
-#include <set>
-
+#include "lib/std.hh"
 #include "util/memory_semantic_macros.hh"
-
-#include "refactor/object.hh"
+#include "refactor/objects/mod.hh"
 
 namespace runtime {
 
@@ -112,10 +104,6 @@ public:
     }
 };
 
-SemiSpaceIterator SemiSpace::Iterator() {
-    return SemiSpaceIterator{this};
-}
-
 
 class Heap;
 class Handle;
@@ -166,17 +154,17 @@ public:
     NOT_MOVEABLE(Handle);
     COPYABLE(Handle);
 
+    Handle& operator=(const Primitive& other) {
+        this->location = other;
+        return *this;
+    }
+
     Primitive* operator->() { return &location; }
     Primitive GetData() const { return location; }
 private:
     friend Heap;
     Primitive* GetLocation() { return &location; }
 };
-
-Handle HandleManager::Get() {
-    Handle ret{this};
-    return ret;
-}
 
 class Heap {
 private:
@@ -225,13 +213,22 @@ public:
         return StructureAllocator<Pair>(first, second);
     }
 
-    MapNode* NewMapNode(Primitive key, Primitive value, Primitive next) {
-        return StructureAllocator<MapNode>(key, value, next);
-    }
-
     Map* NewMap() {
         return StructureAllocator<Map>();
     }
+
+    Envrionment* NewEnvironment(Primitive outer, Primitive lookup) {
+        return StructureAllocator<Envrionment>(outer, lookup);
+    }
+
+    Stack* NewStack() {
+        return StructureAllocator<Stack>();
+    }
+
+    Frame* NewFrame(Primitive env, Primitive outer, Primitive stack) {
+        return StructureAllocator<Frame>(env, outer, stack);
+    }
+
 
 private:
     void* Allocate(std::size_t bytes) {
