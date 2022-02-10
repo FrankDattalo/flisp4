@@ -1,9 +1,9 @@
 #ifndef HEAP_HH__
 #define HEAP_HH__
 
-#include "lib/std.hh"
-#include "util/memory_semantic_macros.hh"
-#include "refactor/objects/mod.hh"
+#include "lib.hh"
+#include "util.hh"
+#include "objects.hh"
 
 namespace runtime {
 
@@ -189,6 +189,12 @@ public:
     Handle GetHandle() {
         return handles.Get();
     }
+
+    Handle GetHandle(Primitive value) {
+        Handle ret = handles.Get();
+        ret = value;
+        return ret;
+    }
     
     template<typename T, typename... Primitive>
     T* StructureAllocator(Primitive... args) {
@@ -229,6 +235,16 @@ public:
         return StructureAllocator<Frame>(env, outer, stack);
     }
 
+    VirtualMachine* NewVirtualMachine() {
+        return StructureAllocator<VirtualMachine>(Primitive::NativeReference(this));
+    }
+
+    NativeFunction* NewNativeFunction(NativeFunctionPointer ptr, std::int64_t arity) {
+        return StructureAllocator<NativeFunction>(
+            Primitive::NativeReference(reinterpret_cast<void*>(ptr)),
+            Primitive::Integer(arity)
+        );
+    }
 
 private:
     void* Allocate(std::size_t bytes) {
@@ -323,17 +339,7 @@ private:
         DEBUGLN(location << " updated to point to " << new_addr_casted);
     }
 
-    void transfer() {
-        SemiSpaceIterator iter = active->Iterator();
-        while (iter.HasNext()) {
-            Object* obj = iter.Next();
-            SlotIterator slots = obj->Slots();
-            while (slots.HasNext()) {
-                Primitive* slot = slots.Next();
-                transferIfReference(slot);
-            }
-        }
-    }
+    void transfer();
 
     // Actual GC Implementation here
     void Gc() {

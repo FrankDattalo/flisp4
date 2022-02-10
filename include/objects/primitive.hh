@@ -128,6 +128,12 @@ public:
         return ret;
     }
 
+    static Primitive NativeReference(void* val) {
+        Primitive ret;
+        ret.SetNativeReference(val);
+        return ret;
+    }
+
     void SetInteger(std::int64_t value) {
         checkSize(value);
         std::uint64_t data = *reinterpret_cast<std::uint64_t*>(&value);

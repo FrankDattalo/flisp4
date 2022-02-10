@@ -22,23 +22,30 @@ class SlotIterator;
     V(Map) \
     V(Envrionment) \
     V(Stack) \
-    V(Frame)
+    V(Frame) \
+    V(VirtualMachine) \
+    V(NativeFunction) \
+    V(Function) \
+    V(Closure)
 
 #define FORWARD_DECLARE(v) class v;
 PER_CONCRETE_OBJECT_TYPE(FORWARD_DECLARE)
 #undef FORWARD_DECLARE
 
 /*
-    Object - base class for all heap
+    Object - base class for all things allocated on the heap
         SlottedObject - represents a heap object that is an array of slots
             Structure - represents a fixed size array of slots
                 Pair - basic list pair
                 Map - key value lookup
-                MapNode - node in map
                 Environment - representings the envrionment
                 Stack - stack data structure
                 Frame - invocation frame
-            Vector - scheme vector
+                NativeFunction - object that holds metadata and pointer to native function 
+                Function - holds static function data such as code and formals
+                Closure - closure of function including created envrionment
+                VirtualMachine - the entire virtual machine
+            Vector - scheme vector created with a variable size of elements
         String - string
 */
 class Object {

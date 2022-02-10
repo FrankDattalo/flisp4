@@ -24,9 +24,14 @@ public:
     constexpr static std::size_t MinAllocationSize() {
         return AllocationSize();
     }
+
+    constexpr static std::size_t NumberOfSlots() {
+        return N;
+    }
 };
 
 #define FIELD(number, name) \
+    static_assert(number < NumberOfSlots()); \
     Primitive& name() { return SlotRef(number); } \
     const Primitive& const_##name() const { return *SlotPtr(number); }
 

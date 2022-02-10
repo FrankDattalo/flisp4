@@ -1,5 +1,5 @@
-#include "refactor/objects/stack.hh"
-#include "refactor/heap.hh"
+#include "objects/stack.hh"
+#include "heap.hh"
 
 namespace runtime {
 

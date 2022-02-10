@@ -1,7 +1,6 @@
-#include "refactor/objects/mod.hh"
+#include "objects.hh"
 
 namespace runtime {
-
 
 // sanity that we can always write a gc forward for any object
 #define ASSERT_SIZE(v) static_assert(v::MinAllocationSize() >= Object::RequiredMinAllocationSize());

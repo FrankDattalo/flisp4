@@ -11,6 +11,10 @@
 #include "stack.hh"
 #include "string.hh"
 #include "vector.hh"
+#include "vm.hh"
+#include "nativefn.hh"
+#include "function.hh"
+#include "closure.hh"
 
 namespace runtime {
 

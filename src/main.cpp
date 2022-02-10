@@ -1,6 +1,6 @@
 // #include "cmd/entry.hh"
-#include "refactor/objects/primitive.hh"
-#include "refactor/heap.hh"
+#include "objects/primitive.hh"
+#include "heap.hh"
 
 #include <iostream>
 #include <string>
@@ -42,6 +42,10 @@ void print(Primitive p) {
         void OnEnvrionment(const Object* obj) override { std::cout << "todo"; }
         void OnStack(const Object* obj) override { std::cout << "todo"; }
         void OnFrame(const Object* obj) override { std::cout << "todo"; }
+        void OnVirtualMachine(const Object* obj) override { std::cout << "todo"; }
+        void OnNativeFunction(const Object* obj) override { std::cout << "todo"; }
+        void OnFunction(const Object* obj) override { std::cout << "todo"; }
+        void OnClosure(const Object* obj) override { std::cout << "todo"; }
     } obj_visitor;
 
     struct PrimVisitor : Primitive::Visitor {
@@ -147,6 +151,10 @@ int main(int argc, char** argv) {
         std::cout << "Press [Enter] to continue...";
         std::getline(std::cin, line);
     }
+
+    Heap heap3{10000000};
+
+    heap3.NewVirtualMachine()->Execute();
 
     return 0;
 }
