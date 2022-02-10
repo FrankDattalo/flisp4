@@ -22,7 +22,12 @@ protected:
 public:
     SlottedObject(Object::Type _type, std::uint32_t _allocation_size)
     : Object(_type, _allocation_size)
-    {}
+    {
+        std::size_t N = SlotCount();
+        for (std::size_t i = 0; i < N; i++) {
+            SlotRef(i).SetNil();
+        }
+    }
 
     bool HasNext(std::size_t index) const {
         return index < SlotCount();
