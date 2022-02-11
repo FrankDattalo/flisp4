@@ -15,6 +15,7 @@
 #include "nativefn.hh"
 #include "function.hh"
 #include "closure.hh"
+#include "symboltable.hh"
 
 namespace runtime {
 

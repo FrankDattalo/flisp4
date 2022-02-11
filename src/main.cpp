@@ -46,6 +46,7 @@ void print(Primitive p) {
         void OnNativeFunction(const Object* obj) override { std::cout << "todo"; }
         void OnFunction(const Object* obj) override { std::cout << "todo"; }
         void OnClosure(const Object* obj) override { std::cout << "todo"; }
+        void OnSymbolTable(const Object* obj) override { std::cout << "todo"; }
     } obj_visitor;
 
     struct PrimVisitor : Primitive::Visitor {

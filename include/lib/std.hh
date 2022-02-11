@@ -12,5 +12,6 @@
 #include <map>
 #include <set>
 #include <array>
+#include <initializer_list>
 
 #endif // LIB_STD_HH__

@@ -5,10 +5,27 @@ namespace runtime {
 
 void VirtualMachine::Execute() {
     Handle this_handle = heap()->GetHandle(Primitive::Reference(this));
-    setupGlobalEnvrionment();
+    setup();
 }
 
-void VirtualMachine::setupGlobalEnvrionment() {
+void VirtualMachine::setupSymbolTable() {
+    Handle map1 = heap()->GetHandle(
+        Primitive::Reference(heap()->NewMap())
+    );
+
+    Handle map2 = heap()->GetHandle(
+        Primitive::Reference(heap()->NewMap())
+    );
+
+    symbol_table_slot() = Primitive::Reference(
+        heap()->NewSymbolTable(
+            map1.GetData(), map2.GetData()
+        )
+    );
+}
+
+void VirtualMachine::setupGlobalEnv() {
+
     Handle env = heap()->GetHandle(
         Primitive::Reference(heap()->NewMap())
     );
@@ -19,7 +36,6 @@ void VirtualMachine::setupGlobalEnvrionment() {
             env.GetData()
         )
     );
-
 }
 
 Envrionment* VirtualMachine::env() {
@@ -29,6 +45,10 @@ Envrionment* VirtualMachine::env() {
 Heap* VirtualMachine::heap() {
     Heap* heap_ptr = static_cast<Heap*>(heap_slot().GetNativeReference());
     return heap_ptr;
+}
+
+SymbolTable* VirtualMachine::sym() {
+    return symbol_table_slot().GetReference()->AsSymbolTable();
 }
 
 } // namespace runtime

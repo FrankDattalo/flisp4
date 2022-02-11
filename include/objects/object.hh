@@ -26,7 +26,8 @@ class SlotIterator;
     V(VirtualMachine) \
     V(NativeFunction) \
     V(Function) \
-    V(Closure)
+    V(Closure) \
+    V(SymbolTable)
 
 #define FORWARD_DECLARE(v) class v;
 PER_CONCRETE_OBJECT_TYPE(FORWARD_DECLARE)

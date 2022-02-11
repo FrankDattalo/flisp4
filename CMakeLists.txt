@@ -11,6 +11,7 @@ set(SOURCES
   ${PROJECT_SOURCE_DIR}/src/objects/map.cpp
   ${PROJECT_SOURCE_DIR}/src/objects/env.cpp
   ${PROJECT_SOURCE_DIR}/src/objects/vm.cpp
+  ${PROJECT_SOURCE_DIR}/src/objects/symboltable.cpp
   ${PROJECT_SOURCE_DIR}/src/heap.cpp
 )
 add_executable(flang

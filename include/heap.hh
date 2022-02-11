@@ -160,7 +160,7 @@ public:
     }
 
     Primitive* operator->() { return &location; }
-    Primitive GetData() const { return location; }
+    const Primitive & GetData() const { return location; }
 private:
     friend Heap;
     Primitive* GetLocation() { return &location; }
@@ -195,9 +195,9 @@ public:
         ret = value;
         return ret;
     }
-    
-    template<typename T, typename... Primitive>
-    T* StructureAllocator(Primitive... args) {
+
+    template<typename T, typename... Primitives>
+    T* StructureAllocator(const Primitives&... args) {
         void* addr = Allocate(T::AllocationSize());
         T* ret = new (addr) T(args...);
         return ret;
@@ -215,7 +215,7 @@ public:
         return ret;
     }
 
-    Pair* NewPair(Primitive first, Primitive second) {
+    Pair* NewPair(const Primitive & first, const Primitive & second) {
         return StructureAllocator<Pair>(first, second);
     }
 
@@ -223,7 +223,7 @@ public:
         return StructureAllocator<Map>();
     }
 
-    Envrionment* NewEnvironment(Primitive outer, Primitive lookup) {
+    Envrionment* NewEnvironment(const Primitive & outer, const Primitive & lookup) {
         return StructureAllocator<Envrionment>(outer, lookup);
     }
 
@@ -231,7 +231,7 @@ public:
         return StructureAllocator<Stack>();
     }
 
-    Frame* NewFrame(Primitive env, Primitive outer, Primitive stack) {
+    Frame* NewFrame(const Primitive & env, const Primitive & outer, const Primitive & stack) {
         return StructureAllocator<Frame>(env, outer, stack);
     }
 
@@ -244,6 +244,10 @@ public:
             Primitive::NativeReference(reinterpret_cast<void*>(ptr)),
             Primitive::Integer(arity)
         );
+    }
+
+    SymbolTable* NewSymbolTable(const Primitive & map1, const Primitive & map2) {
+        return StructureAllocator<SymbolTable>(map1, map2);
     }
 
 private:

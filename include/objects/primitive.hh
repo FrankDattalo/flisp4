@@ -104,6 +104,12 @@ public:
         return visitor.result;
     }
 
+    static Primitive Symbol(std::uint64_t value) {
+        Primitive ret;
+        ret.SetSymbol(value);
+        return ret;
+    }
+
     static Primitive Integer(std::int64_t value) {
         Primitive ret;
         ret.SetInteger(value);
