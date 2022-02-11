@@ -186,10 +186,6 @@ public:
 
     NOT_MOVEABLE(Heap);
 
-    Handle GetHandle() {
-        return handles.Get();
-    }
-
     Handle GetHandle(Primitive value) {
         Handle ret = handles.Get();
         ret = value;

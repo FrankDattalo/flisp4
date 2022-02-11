@@ -138,8 +138,8 @@ int main(int argc, char** argv) {
     std::cout << std::endl;
 
     Heap heap2{200};
-    Handle handle = heap2.GetHandle();
-    Handle pairHandle = heap2.GetHandle();
+    Handle handle = heap2.GetHandle(Primitive::Nil());
+    Handle pairHandle = heap2.GetHandle(Primitive::Nil());
     pairHandle->SetReference(heap2.NewPair(Primitive::Nil(), Primitive::Nil()));
     for (std::size_t i = 0; i < 100; i++) {
         std::cout << "Iteration " << i << std::endl;
