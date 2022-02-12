@@ -117,7 +117,9 @@ public:
     virtual ~UntypedHandle();
 
     NOT_MOVEABLE(UntypedHandle);
-    COPYABLE(UntypedHandle);
+
+    // TODO custom copy constructor and operator
+    NOT_COPYABLE(UntypedHandle);
 
     const Primitive & GetData() const { return location; }
 };
