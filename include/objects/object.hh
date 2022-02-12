@@ -102,8 +102,9 @@ public:
             checkType(Object::Type::v); \
             return reinterpret_cast<v*>(this); \
         } \
-        template<typename T, std::enable_if_t<std::is_same<T, v>::value>> \
-        v* As() { \
+        template<typename T> \
+        typename std::enable_if<std::is_same<v, T>::value, v*>::type \
+        As() { \
             return As##v(); \
         }
     PER_CONCRETE_OBJECT_TYPE(ADD_CONVERTER)

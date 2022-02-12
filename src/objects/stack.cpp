@@ -4,8 +4,8 @@
 namespace runtime {
 
 void Stack::Push(Stack* self_, Heap* heap, Primitive obj_) {
-    Handle<Primitive> obj = heap->GetHandle(obj_);
-    Handle<Stack> self = heap->GetHandle(self_);
+    PrimitiveHandle obj = heap->GetHandle(obj_);
+    ReferenceHandle<Stack> self = heap->GetHandle(self_);
 
     Pair* new_head = heap->NewPair(
         obj.GetData(), self->head()

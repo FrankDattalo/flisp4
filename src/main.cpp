@@ -155,7 +155,7 @@ int main(int argc, char** argv) {
 
     Heap heap3{1000};
 
-    heap3.NewVirtualMachine()->Execute();
+    VirtualMachine::Execute(heap3.NewVirtualMachine());
 
     return 0;
 }

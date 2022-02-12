@@ -21,7 +21,7 @@ public:
 
     ~SymbolTable() = default;
 
-    static Primitive Intern(SymbolTable* self, Heap* heap, Primitive str);
+    static Primitive Intern(SymbolTable* self, Heap* heap, String* str);
 
     static Primitive ToString(SymbolTable* self, Primitive symbol) {
         return Map::Lookup(self->const_id_to_string(), symbol);

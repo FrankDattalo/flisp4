@@ -4,34 +4,34 @@
 namespace runtime {
 
 void VirtualMachine::Execute(VirtualMachine* self_) {
-    Handle<VirtualMachine> self = self_->heap()->GetHandle(self_);
-    setup(self.Ptr());
+    ReferenceHandle<VirtualMachine> self = self_->heap()->GetHandle(self_);
+    setup(self.GetPointer());
 }
 
 void VirtualMachine::setupSymbolTable(VirtualMachine* self) {
-    Handle map1 = heap()->GetHandle(
-        Primitive::Reference(heap()->NewMap())
+    ReferenceHandle<Map> map1 = self->heap()->GetHandle(
+        self->heap()->NewMap()
     );
 
-    Handle map2 = heap()->GetHandle(
-        Primitive::Reference(heap()->NewMap())
+    ReferenceHandle<Map> map2 = self->heap()->GetHandle(
+        self->heap()->NewMap()
     );
 
-    symbol_table_slot() = Primitive::Reference(
-        heap()->NewSymbolTable(
+    self->symbol_table_slot() = Primitive::Reference(
+        self->heap()->NewSymbolTable(
             map1.GetData(), map2.GetData()
         )
     );
 }
 
-void VirtualMachine::setupGlobalEnv() {
+void VirtualMachine::setupGlobalEnv(VirtualMachine* self) {
 
-    Handle env = heap()->GetHandle(
-        Primitive::Reference(heap()->NewMap())
+    ReferenceHandle<Map> env = self->heap()->GetHandle(
+        self->heap()->NewMap()
     );
 
-    global_env_slot() = Primitive::Reference(
-        heap()->NewEnvironment(
+    self->global_env_slot() = Primitive::Reference(
+        self->heap()->NewEnvironment(
             Primitive::Nil(),
             env.GetData()
         )

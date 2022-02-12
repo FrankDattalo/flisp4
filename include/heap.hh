@@ -108,51 +108,47 @@ class Heap;
 class RootManager;
 
 class UntypedHandle {
-private:
+protected:
     Primitive location;
     RootManager* manager;
 public:
     UntypedHandle(RootManager* _manager, Primitive _location);
 
-    ~UntypedHandle();
+    virtual ~UntypedHandle();
 
     NOT_MOVEABLE(UntypedHandle);
     COPYABLE(UntypedHandle);
 
     const Primitive & GetData() const { return location; }
+};
 
-private:
-    friend Heap;
-    Primitive* GetLocation() { return &location; }
+class PrimitiveHandle : public UntypedHandle {
+public:
+    PrimitiveHandle(RootManager* _manager, Primitive _data)
+    : UntypedHandle(_manager, _data)
+    {}
+
+    virtual ~PrimitiveHandle() = default;
+
+    Primitive* operator->() {
+        return &location;
+    }
 };
 
 template<typename T>
-class Handle : public UntypedHandle {
-private:
-    Primitive location;
-    RootManager* manager;
+class ReferenceHandle : public UntypedHandle {
 public:
-
-    template<typename U = std::negation<std::is_same<Primitive, T>>>
-    Handle(RootManager* _manager, T* ref, typename std::enable_if<U::value>::type* = 0) 
+    ReferenceHandle(RootManager* _manager, T* ref)
     : UntypedHandle(_manager, Primitive::Reference(ref))
     {}
 
-    template<typename U = std::is_same<Primitive, T>>
-    Handle(RootManager* _manager, Primitive prim, typename std::enable_if<U::value>::type* = 0) 
-    : UntypedHandle(_manager, prim)
-    {}
+    virtual ~ReferenceHandle() = default;
 
-    ~Handle() = default;
-
-    NOT_MOVEABLE(Handle);
-    COPYABLE(Handle);
-
-    Primitive* GetPrimitive() {
-        return &location;
+    T* operator->() {
+        return GetPointer();
     }
-    
-    T* GetReference() {
+
+    T* GetPointer() {
         return location.GetReference()->As<T>();
     }
 };
@@ -168,13 +164,13 @@ public:
     NOT_MOVEABLE(RootManager);
 
     template<typename T>
-    Handle<T> Get(T* ref) {
-        Handle<T> ret{this, ref};
+    ReferenceHandle<T> Get(T* ref) {
+        ReferenceHandle<T> ret{this, ref};
         return ret;
     }
 
-    Handle<Primitive> Get(Primitive val) {
-        Handle<Primitive> ret{this, val};
+    PrimitiveHandle Get(Primitive val) {
+        PrimitiveHandle ret{this, val};
         return ret;
     }
 
@@ -214,11 +210,11 @@ public:
     NOT_MOVEABLE(Heap);
 
     template<typename T>
-    Handle<T> GetHandle(T* ptr) {
+    ReferenceHandle<T> GetHandle(T* ptr) {
         return roots.Get(ptr);
     }
 
-    Handle<Primitive> GetHandle(Primitive val) {
+    PrimitiveHandle GetHandle(Primitive val) {
         return roots.Get(val);
     }
 

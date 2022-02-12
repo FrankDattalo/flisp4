@@ -3,12 +3,12 @@
 
 namespace runtime {
 
-Primitive SymbolTable::Intern(SymbolTable* self_, Heap* heap, Primitive str_) {
+Primitive SymbolTable::Intern(SymbolTable* self_, Heap* heap, String* str_) {
 
-    Handle<SymbolTable> self = heap->GetHandle(self_);
-    Handle<Primitive> str = heap->GetHandle(str_);
+    ReferenceHandle<SymbolTable> self = heap->GetHandle(self_);
+    ReferenceHandle<String> str = heap->GetHandle(str_);
 
-    Primitive lookup = Map::Lookup(self->string_to_id(), str);
+    Primitive lookup = Map::Lookup(self->string_to_id(), str.GetData());
 
     if (lookup.GetType() != Primitive::Type::Nil) {
         return lookup;

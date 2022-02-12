@@ -3,38 +3,34 @@
 
 namespace runtime {
 
-void Map::Insert(Map* self, Heap* heap, Primitive key, Primitive value) {
-    Pair* kvpair = Map::LookupNode(self, key);
+void Map::Insert(Map* self_, Heap* heap, Primitive key_, Primitive value_) {
+
+    ReferenceHandle<Map> self = heap->GetHandle(self_);
+    PrimitiveHandle key = heap->GetHandle(key_);
+    PrimitiveHandle value = heap->GetHandle(value_);
+
+    Pair* lookup = Map::LookupNode(self.GetPointer(), key.GetData());
 
     // update
-    if (kvpair != nullptr) {
-        Pair::SetSecond(kvpair, value);
+    if (lookup != nullptr) {
+        Pair::SetSecond(lookup, value.GetData());
         return;
     }
 
     // insert
-    Handle this_handle = heap->GetHandle(Primitive::Reference(self));
-    Handle key_handle = heap->GetHandle(key);
-    Handle value_handle = heap->GetHandle(value);
-
-    TypedHandle<Map> self_handle = heap->GetHandle(self);
-
-    self_handle->
-
-    Handle kvpair_handle = heap->GetHandle(
-        Primitive::Reference(
-            heap->NewPair(key_handle.GetData(), value_handle.GetData())
-        )
+    ReferenceHandle<Pair> kvpair = heap->GetHandle(
+        heap->NewPair(key.GetData(), value.GetData())
     );
-    Handle newhead_handle = heap->GetHandle(
-        Primitive::Reference(
-            heap->NewPair(kvpair_handle.GetData(), this_handle->GetReference()->AsMap()->head())
+
+    ReferenceHandle<Pair> new_head = heap->GetHandle(
+        heap->NewPair(
+            kvpair.GetData(), 
+            self->head()
         )
     );
 
-    this_handle->GetReference()->AsMap()->size() = Primitive::Integer(
-        this_handle->GetReference()->AsMap()->size().GetInteger() + 1);
-    this_handle->GetReference()->AsMap()->head() = newhead_handle.GetData();
+    self->size() = Primitive::Integer(self->size().GetInteger() + 1);
+    self->head() = new_head.GetData();
 }
 
 } // namespace runtime
