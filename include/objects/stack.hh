@@ -21,22 +21,22 @@ public:
 
     ~Stack() = default;
 
-    void Push(Heap* heap, Primitive obj);
+    static void Push(Stack* self, Heap* heap, Primitive obj);
 
-    Primitive Pop() {
-        Primitive top = head();
+    static Primitive Pop(Stack* self) {
+        Primitive top = self->head();
         if (top.GetType() == Primitive::Type::Nil) {
             throw std::runtime_error{"Pop on empty stack"};
         }
         Pair* pair = top.GetReference()->AsPair();
-        Primitive result = pair->GetFirst();
-        head() = pair->GetSecond();
-        size() = Primitive::Integer(size().GetInteger() - 1);
+        Primitive result = Pair::GetFirst(pair);
+        self->head() = Pair::GetSecond(pair);
+        self->size() = Primitive::Integer(self->size().GetInteger() - 1);
         return result;
     }
 
-    Primitive Size() const {
-        return const_size();
+    static Primitive Size(Stack* self) {
+        return self->const_size();
     }
 };
 

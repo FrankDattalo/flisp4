@@ -17,11 +17,11 @@ public:
 
     ~Pair() = default;
 
-    Primitive GetFirst() const { return const_first(); }
-    void SetFirst(Primitive val) { first() = val; }
+    static Primitive GetFirst(const Pair* self) { return self->const_first(); }
+    static void SetFirst(Pair* self, Primitive val) { self->first() = val; }
 
-    Primitive GetSecond() const { return const_second(); }
-    void SetSecond(Primitive val) { second() = val; }
+    static Primitive GetSecond(const Pair* self) { return self->const_second(); }
+    static void SetSecond(Pair* self, Primitive val) { self->second() = val; }
 };
 
 static_assert(sizeof(Pair) == sizeof(Object));

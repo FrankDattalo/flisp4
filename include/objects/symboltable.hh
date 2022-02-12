@@ -21,10 +21,10 @@ public:
 
     ~SymbolTable() = default;
 
-    Primitive Intern(Heap* heap, Primitive str);
+    static Primitive Intern(SymbolTable* self, Heap* heap, Primitive str);
 
-    Primitive ToString(Primitive symbol) const {
-        return const_id_to_string()->Lookup(symbol);
+    static Primitive ToString(SymbolTable* self, Primitive symbol) {
+        return Map::Lookup(self->const_id_to_string(), symbol);
     }
 
 private:

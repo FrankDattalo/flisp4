@@ -13,5 +13,6 @@
 #include <set>
 #include <array>
 #include <initializer_list>
+#include <type_traits>
 
 #endif // LIB_STD_HH__

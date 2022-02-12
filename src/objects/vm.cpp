@@ -3,12 +3,12 @@
 
 namespace runtime {
 
-void VirtualMachine::Execute() {
-    Handle this_handle = heap()->GetHandle(Primitive::Reference(this));
-    setup();
+void VirtualMachine::Execute(VirtualMachine* self_) {
+    Handle<VirtualMachine> self = self_->heap()->GetHandle(self_);
+    setup(self.Ptr());
 }
 
-void VirtualMachine::setupSymbolTable() {
+void VirtualMachine::setupSymbolTable(VirtualMachine* self) {
     Handle map1 = heap()->GetHandle(
         Primitive::Reference(heap()->NewMap())
     );

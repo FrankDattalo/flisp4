@@ -104,66 +104,93 @@ public:
     }
 };
 
-
 class Heap;
-class Handle;
+class RootManager;
 
-class HandleManager {
-private:
-    std::set<Handle*> handles;
-public:
-    HandleManager() = default;
-    ~HandleManager() = default;
-
-    NOT_COPYABLE(HandleManager);
-    NOT_MOVEABLE(HandleManager);
-
-    Handle Get();
-
-    void AddHandle(Handle* handle_location) {
-        DEBUGLN("Adding handle at " << handle_location);
-        handles.insert(handle_location);
-    }
-
-    void RemoveHandle(Handle* handle_location) {
-        DEBUGLN("Removing handle at " << handle_location);
-        handles.erase(handle_location);
-    }
-
-    const std::set<Handle*>& GetHandles() const {
-        return handles;
-    }
-};
-
-class Handle {
+class UntypedHandle {
 private:
     Primitive location;
-    HandleManager* manager;
+    RootManager* manager;
 public:
-    Handle(HandleManager* _manager)
-    : manager{_manager}
-    {
-        manager->AddHandle(this);
-        DEBUGLN("Handle at " << this << " for location " << &location);
-    }
+    UntypedHandle(RootManager* _manager, Primitive _location);
 
-    ~Handle() {
-        manager->RemoveHandle(this);
-    }
+    ~UntypedHandle();
+
+    NOT_MOVEABLE(UntypedHandle);
+    COPYABLE(UntypedHandle);
+
+    const Primitive & GetData() const { return location; }
+
+private:
+    friend Heap;
+    Primitive* GetLocation() { return &location; }
+};
+
+template<typename T>
+class Handle : public UntypedHandle {
+private:
+    Primitive location;
+    RootManager* manager;
+public:
+
+    template<typename U = std::negation<std::is_same<Primitive, T>>>
+    Handle(RootManager* _manager, T* ref, typename std::enable_if<U::value>::type* = 0) 
+    : UntypedHandle(_manager, Primitive::Reference(ref))
+    {}
+
+    template<typename U = std::is_same<Primitive, T>>
+    Handle(RootManager* _manager, Primitive prim, typename std::enable_if<U::value>::type* = 0) 
+    : UntypedHandle(_manager, prim)
+    {}
+
+    ~Handle() = default;
 
     NOT_MOVEABLE(Handle);
     COPYABLE(Handle);
 
-    Handle& operator=(const Primitive& other) {
-        this->location = other;
-        return *this;
+    Primitive* GetPrimitive() {
+        return &location;
+    }
+    
+    T* GetReference() {
+        return location.GetReference()->As<T>();
+    }
+};
+
+class RootManager {
+private:
+    std::set<Primitive*> roots;
+public:
+    RootManager() = default;
+    ~RootManager() = default;
+
+    NOT_COPYABLE(RootManager);
+    NOT_MOVEABLE(RootManager);
+
+    template<typename T>
+    Handle<T> Get(T* ref) {
+        Handle<T> ret{this, ref};
+        return ret;
     }
 
-    Primitive* operator->() { return &location; }
-    const Primitive & GetData() const { return location; }
-private:
-    friend Heap;
-    Primitive* GetLocation() { return &location; }
+    Handle<Primitive> Get(Primitive val) {
+        Handle<Primitive> ret{this, val};
+        return ret;
+    }
+
+    void AddRoot(Primitive* root) {
+        DEBUGLN("Adding root at " << root);
+        roots.insert(root);
+    }
+
+    void RemoveRoot(Primitive* root) {
+        DEBUGLN("Removing root at " << root);
+        roots.erase(root);
+    }
+
+    const std::set<Primitive*>& GetRoots() const {
+        return roots;
+    }
 };
 
 class Heap {
@@ -173,7 +200,7 @@ private:
     SemiSpace space2;
     SemiSpace* active;
     SemiSpace* passive;
-    HandleManager handles;
+    RootManager roots;
 public:
     Heap(std::size_t size) : space1{size}, space2{size} {
         active = &space1;
@@ -186,10 +213,13 @@ public:
 
     NOT_MOVEABLE(Heap);
 
-    Handle GetHandle(Primitive value) {
-        Handle ret = handles.Get();
-        ret = value;
-        return ret;
+    template<typename T>
+    Handle<T> GetHandle(T* ptr) {
+        return roots.Get(ptr);
+    }
+
+    Handle<Primitive> GetHandle(Primitive val) {
+        return roots.Get(val);
     }
 
     template<typename T, typename... Primitives>
@@ -278,12 +308,10 @@ private:
 
     void mark() {
         DEBUGLN("Marking roots");
-        auto iter = handles.GetHandles();
-        for (Handle* handle : iter) {
-            DEBUGLN("Visiting handle at " << handle);
-            Primitive* location = handle->GetLocation();
-            DEBUGLN("Object location is " << location);
-            transferIfReference(location);
+        auto iter = roots.GetRoots();
+        for (Primitive* root : iter) {
+            DEBUGLN("Visiting root at " << root);
+            transferIfReference(root);
         }
     }
 

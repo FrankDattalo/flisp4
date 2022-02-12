@@ -2,13 +2,19 @@
 
 namespace runtime {
 
-SemiSpaceIterator SemiSpace::Iterator() {
-    return SemiSpaceIterator{this};
+UntypedHandle::UntypedHandle(RootManager* _manager, Primitive _location)
+{
+    this->manager = _manager;
+    this->location = _location;
+    this->manager->AddRoot(&location);
 }
 
-Handle HandleManager::Get() {
-    Handle ret{this};
-    return ret;
+UntypedHandle::~UntypedHandle() {
+    this->manager->RemoveRoot(&location);
+}
+
+SemiSpaceIterator SemiSpace::Iterator() {
+    return SemiSpaceIterator{this};
 }
 
 void Heap::transfer() {

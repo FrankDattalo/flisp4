@@ -10,24 +10,24 @@ namespace runtime {
 class Envrionment : public Structure<Object::Type::Envrionment, 2> {
 private:
     FIELD(0, outer);
-    FIELD(1, lookup);
+    FIELD(1, lookup_slot);
 
 public:
     Envrionment(Primitive _outer, Primitive _lookup) : Structure() {
         outer() = _outer;
-        lookup() = _lookup;
+        lookup_slot() = _lookup;
     }
 
     ~Envrionment() = default;
 
-    Primitive Lookup(Primitive symbol) const {
+    static Primitive Lookup(Envrionment* self, Primitive symbol) {
         if (symbol.GetType() != Primitive::Type::Symbol) {
             throw std::runtime_error{"Variable lookup must be a symbol"};
         }
-        Primitive env = Primitive::Reference(const_cast<Envrionment*>(this));
+        Primitive env = Primitive::Reference(self);
         while (env.GetType() != Primitive::Type::Nil) {
             Envrionment* e = env.GetReference()->AsEnvrionment();
-            Primitive result = e->lookup().GetReference()->AsMap()->Lookup(symbol);
+            Primitive result = Map::Lookup(e->lookup(), symbol);
             if (result.GetType() != Primitive::Type::Nil) {
                 return result;
             }
@@ -36,7 +36,11 @@ public:
         return Primitive::Nil();
     }
 
-    void Define(Heap* heap, Primitive symbol, Primitive value);
+    static void Define(Envrionment* self, Heap* heap, Primitive symbol, Primitive value);
+private:
+    Map* lookup() {
+        return lookup_slot().GetReference()->AsMap();
+    }
 };
 
 static_assert(sizeof(Envrionment) == sizeof(Object));

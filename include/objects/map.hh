@@ -18,27 +18,27 @@ public:
     }
 
     // TODO make this RB tree
-    Primitive Lookup(Primitive key) const {
-        Pair* kvpair = LookupNode(key);
+    static Primitive Lookup(const Map* self, Primitive key) {
+        Pair* kvpair = LookupNode(self, key);
         if (kvpair != nullptr) {
-            return kvpair->GetSecond();
+            return Pair::GetSecond(kvpair);
         }
         return Primitive::Nil();
     }
 
-    void Insert(Heap* heap, Primitive key, Primitive value);
+    static void Insert(Map* self, Heap* heap, Primitive key, Primitive value);
 
-    Primitive Size() const { return const_size(); }
+    static Primitive Size(const Map* self) { return self->const_size(); }
 
 private:
-    Pair* LookupNode(Primitive key) const {
-        Primitive current = const_head();
+    static Pair* LookupNode(const Map* self, Primitive key) {
+        Primitive current = self->const_head();
         while (current.GetType() != Primitive::Type::Nil) {
             Pair* casted = current.GetReference()->AsPair();
-            Pair* kvpair = casted->GetFirst().GetReference()->AsPair();
-            current = casted->GetSecond();
+            Pair* kvpair = Pair::GetFirst(casted).GetReference()->AsPair();
+            current = Pair::GetSecond(casted);
             // TODO: make this deep equals
-            if (kvpair->GetFirst().ShallowEquals(&key)) {
+            if (Pair::GetFirst(kvpair).ShallowEquals(&key)) {
                 return kvpair;
             }
         }

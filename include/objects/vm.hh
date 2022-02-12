@@ -18,16 +18,16 @@ public:
         symbol_table_slot() = Primitive::Nil();
     }
 
-    void Execute();
+    static void Execute(VirtualMachine* vm);
 
 private:
-    void setup() {
-        setupSymbolTable();
-        setupGlobalEnv();
+    static void setup(VirtualMachine* vm) {
+        setupSymbolTable(vm);
+        setupGlobalEnv(vm);
     }
 
-    void setupGlobalEnv();
-    void setupSymbolTable();
+    static void setupGlobalEnv(VirtualMachine* vm);
+    static void setupSymbolTable(VirtualMachine* vm);
 
     Heap* heap();
 

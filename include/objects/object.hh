@@ -101,6 +101,10 @@ public:
         v* As##v() { \
             checkType(Object::Type::v); \
             return reinterpret_cast<v*>(this); \
+        } \
+        template<typename T, std::enable_if_t<std::is_same<T, v>::value>> \
+        v* As() { \
+            return As##v(); \
         }
     PER_CONCRETE_OBJECT_TYPE(ADD_CONVERTER)
     #undef ADD_CONVERTER

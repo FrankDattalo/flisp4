@@ -18,14 +18,14 @@ public:
         }
     }
 
-    Primitive GetLength() const { return *length(); }
+    static std::uint64_t GetLength(const String* self) { return self->length()->GetInteger(); }
 
-    Primitive GetChar(std::uint32_t index) const {
-        if (index >= GetLength().GetInteger()) {
+    static char GetChar(const String* self, std::uint32_t index) {
+        if (index >= String::GetLength(self)) {
             throw std::runtime_error{"String index out of bounds"};
         }
-        char* c = chars();
-        return Primitive::Character(c[index]);
+        char* c = self->chars();
+        return c[index];
     }
 
     constexpr static std::size_t MinAllocationSize() {

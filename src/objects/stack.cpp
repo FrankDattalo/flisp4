@@ -3,16 +3,16 @@
 
 namespace runtime {
 
-void Stack::Push(Heap* heap, Primitive obj) {
-    Handle obj_handle = heap->GetHandle(obj);
-    Handle this_handle = heap->GetHandle(Primitive::Reference(this));
+void Stack::Push(Stack* self_, Heap* heap, Primitive obj_) {
+    Handle<Primitive> obj = heap->GetHandle(obj_);
+    Handle<Stack> self = heap->GetHandle(self_);
 
     Pair* new_head = heap->NewPair(
-        obj_handle.GetData(), this->head()
+        obj.GetData(), self->head()
     );
 
-    this->head() = Primitive::Reference(new_head);
-    this->size() = Primitive::Integer(this->size().GetInteger() + 1);
+    self->head() = Primitive::Reference(new_head);
+    self->size() = Primitive::Integer(self->size().GetInteger() + 1);
 }
 
 }
