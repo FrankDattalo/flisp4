@@ -112,14 +112,17 @@ protected:
     Primitive location;
     RootManager* manager;
 public:
-    UntypedHandle(RootManager* _manager, Primitive _location);
+    UntypedHandle(RootManager* _manager, Primitive _data);
 
     virtual ~UntypedHandle();
 
     NOT_MOVEABLE(UntypedHandle);
 
-    // TODO custom copy constructor and operator
-    NOT_COPYABLE(UntypedHandle);
+    UntypedHandle(const UntypedHandle& other)
+    : UntypedHandle(other.manager, other.location)
+    {}
+
+    UntypedHandle& operator=(const UntypedHandle& other) = delete;
 
     const Primitive & GetData() const { return location; }
 };
@@ -128,6 +131,12 @@ class PrimitiveHandle : public UntypedHandle {
 public:
     PrimitiveHandle(RootManager* _manager, Primitive _data)
     : UntypedHandle(_manager, _data)
+    {}
+
+    NOT_MOVEABLE(PrimitiveHandle);
+
+    PrimitiveHandle(const PrimitiveHandle& other) 
+    : UntypedHandle(other)
     {}
 
     virtual ~PrimitiveHandle() = default;
@@ -140,11 +149,17 @@ public:
 template<typename T>
 class ReferenceHandle : public UntypedHandle {
 public:
-    ReferenceHandle(RootManager* _manager, T* ref)
-    : UntypedHandle(_manager, Primitive::Reference(ref))
+    ReferenceHandle(RootManager* _manager, T* _data)
+    : UntypedHandle(_manager, Primitive::Reference(_data))
     {}
 
     virtual ~ReferenceHandle() = default;
+
+    NOT_MOVEABLE(ReferenceHandle);
+
+    ReferenceHandle(const ReferenceHandle& other) 
+    : UntypedHandle(other)
+    {}
 
     T* operator->() {
         return GetPointer();
