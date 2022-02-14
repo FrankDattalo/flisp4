@@ -3,3 +3,4 @@ build
 target
 .antlr
 logs
+__pycache__
