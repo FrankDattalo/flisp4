@@ -175,21 +175,22 @@ class Runtime:
         
     def load_transpiled(self, fn):
         file_name = f'./transpiled/{fn}.py'
-        print('Loading', file_name)
+        #print('Loading', file_name)
         with open(file_name) as f:
-            print('Executing', file_name)
+            #print('Executing', file_name)
             exec(f.read())
-            print('Executed', file_name)
-            print('Invoking', file_name)
+            #print('Executed', file_name)
+            #print('Invoking', file_name)
             f = locals()['create']
-            print(f)
+            #print(f)
             result = f(self)
-            print('Invoked!', file_name)
+            #print('Invoked!', file_name)
             return result
 
     def import_transpiled(self, module):
         bc = self.load_transpiled(module)
-        frame = Frame(bc, self.globalenv, None)
+        env = Environment(self.globalenv)
+        frame = Frame(bc, env, None)
         self.evaluate(frame)
         for l in frame.locals:
             self.globalenv.define(l, frame.lookup(l))
@@ -199,13 +200,13 @@ class Runtime:
             current = frame.bc[frame.pc]
             op = current.first
             print('Current bc is', op)
-            # print('Frame before')
-            # print(frame)
+            print('Frame before')
+            print(frame)
             frame = self.dispatch[op](frame, op, current)
             print('Frame after')
             print(frame)
             print('\n')
-            # input('Enter anything to continue...')
+            input('Enter anything to continue...')
 
     def is_truthy(self, val):
         return type(val) is bool and val
@@ -316,7 +317,7 @@ class Runtime:
 
     def start(self):
         self.import_transpiled('factorial')
-        print(self.globalenv)
+        #print(self.globalenv)
 
     def __repr__(self):
         return str(self)
@@ -361,3 +362,16 @@ class Runtime:
                 return True
 
         self.globalenv.define(self.intern('not'), NativeFunction([arg0], not_))
+
+        def display(env):
+            arg0val = env.lookup(arg0)
+            print(arg0val, end='')
+            return NIL
+
+        self.globalenv.define(self.intern('display'), NativeFunction([arg0], display))
+
+        def newline(env):
+            print('\n', end='')
+            return NIL
+
+        self.globalenv.define(self.intern('newline'), NativeFunction([], newline))

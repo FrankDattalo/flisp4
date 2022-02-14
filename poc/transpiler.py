@@ -16,7 +16,7 @@ class Program:
     def __init__(self, expr):
         self.expr = expr
     def compile(self, in_tail_pos):
-        bc = self.expr.compile(in_tail_pos)
+        bc = self.expr.compile(False)
         bc.append((Symbol('pop'),))
         return bc
 class Sequence:
@@ -216,7 +216,8 @@ def main():
             1
             (* n (factorial (- n 1)))))
 
-    (factorial 5)
+    (display (factorial 5))
+    (newline)
     """
 
     ast = Program(
@@ -224,7 +225,7 @@ def main():
             Define(
                 Symbol('factorial'), 
                 Lambda(
-                    [Symbol('n')], 
+                    [ Symbol('n') ], 
                     Sequence([
                         If(
                             Invoke([
@@ -243,8 +244,12 @@ def main():
                 )
             ),
             Invoke([
-                Symbol('factorial'), Literal(5)
-            ])
+                Symbol("display"),
+                Invoke([
+                    Symbol('factorial'), Literal(5)
+                ])
+            ]),
+            Invoke([ Symbol("newline") ])
         ])
     )
 
