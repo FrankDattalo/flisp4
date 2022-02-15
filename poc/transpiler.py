@@ -220,40 +220,127 @@ def main():
     (newline)
     """
 
+    # ast = Program(
+    #     Sequence([
+    #         Define(
+    #             Symbol('factorial'), 
+    #             Lambda(
+    #                 [ Symbol('n') ], 
+    #                 Sequence([
+    #                     If(
+    #                         Invoke([
+    #                             Symbol("="), Symbol("n"), Literal(0)
+    #                         ]),
+    #                         Literal(1),
+    #                         Invoke([
+    #                             Symbol("*"), Symbol("n"), Invoke([
+    #                                 Symbol("factorial"), Invoke([
+    #                                     Symbol("-"), Symbol("n"), Literal(1)
+    #                                 ])
+    #                             ])
+    #                         ])
+    #                     )
+    #                 ])
+    #             )
+    #         ),
+    #         Invoke([
+    #             Symbol("display"),
+    #             Invoke([
+    #                 Symbol('factorial'), Literal(5)
+    #             ])
+    #         ]),
+    #         Invoke([ Symbol("newline") ])
+    #     ])
+    # )
+
+    """
+        (define result 
+            (call-with-current-continuation
+                (lambda (f)
+                    (display 1)
+                    (newline)
+                    (f 0)
+                    (display 2)
+                    (newline)
+                    3
+                )
+            )
+        )
+
+        (display result)
+        (newline)
+    """
+    # ast = Program(
+    #     Sequence([
+    #         Define(
+    #             Symbol('result'),
+    #             Invoke([ Symbol('call-with-current-continuation'),
+    #                 Lambda([ Symbol('f') ], Sequence([
+    #                     Invoke([ Symbol('display'), Literal(1) ]),
+    #                     Invoke([ Symbol('newline') ]),
+    #                     #Invoke([ Symbol('f'), Literal(0) ]),
+    #                     Invoke([ Symbol('display'), Literal(2) ]),
+    #                     Invoke([ Symbol('newline') ]),
+    #                     Literal(3)
+    #                 ]))
+    #             ]),
+    #         ),
+    #         Invoke([ Symbol('display'), Symbol('result') ]),
+    #         Invoke([ Symbol('newline') ]),
+    #     ])
+    # )
+
+    """
+    (define (loop n)
+        (define (iter v)
+            (if (= v n)
+                0
+                (begin
+                    (display v)
+                    (newline)
+                    (iter (+ v 1)))
+            )
+        )
+        (iter 0)
+    )
+
+    (iter 10)
+    """
+
     ast = Program(
         Sequence([
             Define(
-                Symbol('factorial'), 
-                Lambda(
-                    [ Symbol('n') ], 
+                Symbol('loop'), 
+                Lambda([Symbol('n')], 
                     Sequence([
-                        If(
-                            Invoke([
-                                Symbol("="), Symbol("n"), Literal(0)
-                            ]),
-                            Literal(1),
-                            Invoke([
-                                Symbol("*"), Symbol("n"), Invoke([
-                                    Symbol("factorial"), Invoke([
-                                        Symbol("-"), Symbol("n"), Literal(1)
-                                    ])
+                        Define(
+                            Symbol('iter'),
+                            Lambda([Symbol('v')], 
+                                Sequence([
+                                    If(
+                                        Invoke([ Symbol('='), Symbol('v'), Symbol('n') ]),
+                                        Literal(0),
+                                        Sequence([
+                                            Invoke([ Symbol('display'), Symbol('v') ]),
+                                            Invoke([ Symbol('newline') ]),
+                                            Invoke([ 
+                                                Symbol('iter'),
+                                                Invoke([ Symbol('+'), Symbol('v'), Literal(1) ])
+                                            ]),
+                                        ])
+                                    )
                                 ])
-                            ])
-                        )
+                            )
+                        ),
+                        Invoke([ Symbol('iter'), Literal(0) ])
                     ])
                 )
             ),
-            Invoke([
-                Symbol("display"),
-                Invoke([
-                    Symbol('factorial'), Literal(5)
-                ])
-            ]),
-            Invoke([ Symbol("newline") ])
+            Invoke([ Symbol('loop'), Literal(10) ])
         ])
     )
 
-    transpile_to_module('factorial', ast)
+    transpile_to_module('tailrec', ast)
 
 if __name__ == '__main__':
     main()

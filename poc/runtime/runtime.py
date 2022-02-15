@@ -134,6 +134,17 @@ class NativeFunction:
     def __repr__(self):
         return str(self)
 
+class Continuation:
+    def __init__(self, frame):
+        self._frame = frame
+    @property
+    def frame(self):
+        return self._frame
+    def __str__(self):
+        return '(continuation)'
+    def __repr__(self):
+        return str(self)
+
 class Runtime:
     def __init__(self):
         self.symbols = {}
@@ -195,18 +206,26 @@ class Runtime:
         for l in frame.locals:
             self.globalenv.define(l, frame.lookup(l))
 
+    def frame_height(self, frame):
+        ret = 0
+        while frame is not None:
+            ret += 1
+            frame = frame.outer
+        return ret
+
     def evaluate(self, frame):
         while frame.pc < len(frame.bc):
             current = frame.bc[frame.pc]
             op = current.first
-            print('Current bc is', op)
-            print('Frame before')
-            print(frame)
+            #print('Frame height is:', self.frame_height(frame))
+            #print('Current bc is', op)
+            #print('Frame before')
+            #print(frame)
             frame = self.dispatch[op](frame, op, current)
-            print('Frame after')
-            print(frame)
-            print('\n')
-            input('Enter anything to continue...')
+            #print('Frame after')
+            #print(frame)
+            #print('\n')
+            #input('Enter anything to continue...')
 
     def is_truthy(self, val):
         return type(val) is bool and val
@@ -232,7 +251,12 @@ class Runtime:
         frame.pc += 1
         raise Exception('todo')
 
-    def invoke(self, frame, op, bc):
+    def invoke(self, frame, op, bc, returnframe=None):
+        if returnframe is None:
+            # implements tail recursion, if return frame
+            # is different from the frame that is invoking
+            # the method (eg: don't return to me, return to outer/don't push more stack frames)
+            returnframe = frame
         frame.pc += 1
         #print('Temps:', frame.temps)
         num_items = bc.second.first
@@ -247,7 +271,7 @@ class Runtime:
         #print('Reciever', reciever)
         if type(reciever) is Lambda:
             # create a closure
-            innerframe = Frame(reciever.bc, Environment(reciever.env), frame)
+            innerframe = Frame(reciever.bc, Environment(reciever.env), returnframe)
             for argname, argval in zip(reciever.args, args):
                 #print(f'Defining {argname} <- {argval}')
                 innerframe.define(argname, argval)
@@ -257,16 +281,20 @@ class Runtime:
             for argname, argval in zip(reciever.args, args):
                 #print(f'Defining {argname} <- {argval}')
                 innerenv.define(argname, argval)
-            result = reciever.fn(innerenv)
+            frame = reciever.fn(frame, innerenv)
             #print('Native function returned ', result)
-            frame.push(result)
+            return frame
+        elif type(reciever) is Continuation:
+            if len(args) != 1:
+                raise Exception('Continuation takes 1 argument')
+            frame = reciever.frame
+            frame.push(args[0])
             return frame
         else:
             raise Exception(f'Cannot invoke {type(reciever)}')
         
     def invoketail(self, frame, op, bc):
-        # TODO actually implement tail recursion
-        return self.invoke(frame, op, bc)
+        return self.invoke(frame, op, bc, returnframe=frame.outer)
 
     def jumpiffalse(self, frame, op, bc):
         loc = bc.second.first
@@ -316,7 +344,7 @@ class Runtime:
         return frame
 
     def start(self):
-        self.import_transpiled('factorial')
+        self.import_transpiled('tailrec')
         #print(self.globalenv)
 
     def __repr__(self):
@@ -329,24 +357,27 @@ class Runtime:
         arg0 = self.intern('arg0')
         arg1 = self.intern('arg1')
 
-        def equals(env):
+        def equals(frame, env):
             arg1val = env.lookup(arg0)
             arg2val = env.lookup(arg1)
             if type(arg1val) != type(arg2val):
-                return False
-            return arg1val == arg2val
+                frame.push(False)
+            else:
+                frame.push(arg1val == arg2val)
+            return frame
 
         self.globalenv.define(self.intern('='), NativeFunction([arg0, arg1], equals))
 
         def define_binary_numeric(name, fn):
-            def to_register(env):
+            def to_register(frame, env):
                 arg0val = env.lookup(arg0)
                 arg1val = env.lookup(arg1)
                 if type(arg0val) is not int:
                     raise Exception('arg0 must be an integer')
                 if type(arg1val) is not int:
                     raise Exception('arg1 must be an integer')
-                return fn(arg0val, arg1val)
+                frame.push(fn(arg0val, arg1val))
+                return frame
             self.globalenv.define(self.intern(name), NativeFunction([arg0, arg1], to_register))
 
         define_binary_numeric('*', lambda a1, a2: a1 * a2)
@@ -354,24 +385,38 @@ class Runtime:
         define_binary_numeric('-', lambda a1, a2: a1 - a2)
         define_binary_numeric('+', lambda a1, a2: a1 + a2)
 
-        def not_(env):
+        def not_(frame, env):
             arg0val = env.lookup(arg0)
-            if self.is_truthy(arg0val):
-                return False
-            else:
-                return True
+            frame.push(not self.is_truthy(arg0val))
+            return frame
 
         self.globalenv.define(self.intern('not'), NativeFunction([arg0], not_))
 
-        def display(env):
+        def display(frame, env):
             arg0val = env.lookup(arg0)
             print(arg0val, end='')
-            return NIL
+            frame.push(NIL)
+            return frame
 
         self.globalenv.define(self.intern('display'), NativeFunction([arg0], display))
 
-        def newline(env):
+        def newline(frame, env):
             print('\n', end='')
-            return NIL
+            frame.push(NIL)
+            return frame
 
         self.globalenv.define(self.intern('newline'), NativeFunction([], newline))
+
+        def callcc(frame, env):
+            arg0val = env.lookup(arg0)
+            if type(arg0val) is not Lambda:
+                raise Exception(f'Argument to contuation must be a lambda: {type(arg0val)}')
+            if len(arg0val.args) != 1:
+                raise Exception(f'Argument to contuation must be a lambda with 1 argument, got {len(arg0val.args)}')
+            continuation = Continuation(frame)
+            innerenv = Environment(arg0val.env)
+            innerenv.define(arg0val.args[0], continuation)
+            nextframe = Frame(arg0val.bc, innerenv, frame)
+            return nextframe
+
+        self.globalenv.define(self.intern('call-with-current-continuation'), NativeFunction([arg0], callcc))
