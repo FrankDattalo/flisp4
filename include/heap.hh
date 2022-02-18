@@ -179,6 +179,13 @@ public:
         }
     PER_CONCRETE_OBJECT_TYPE(DEFINE_CASTERS)
     #undef DEFINE_CASTERS
+
+    #define DEFINE_PRIMITIVE_CASTERS(V) \
+        V* As##V() { \
+            return block->DataPtr()->As##V(); \
+        }
+    PER_PRIMITIVE_TYPE(DEFINE_PRIMITIVE_CASTERS)
+    #undef DEFINE_PRIMITIVE_CASTERS
 };
 
 class Heap {

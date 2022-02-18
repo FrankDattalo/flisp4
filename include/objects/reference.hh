@@ -13,9 +13,6 @@ public:
 
     ~Reference() = default;
 
-    NOT_MOVEABLE(Reference);
-    COPYABLE(Reference);
-
     Object* Value() const {
         return GetReference();
     }

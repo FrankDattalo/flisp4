@@ -12,6 +12,10 @@ public:
     ~Stack() = default;
 
     FIELD(0, Head);
+
+    static void Push(Heap* heap, Handle stack, Handle data);
+
+    static Handle Pop(Heap* heap, Handle stack);
 };
 
 static_assert(sizeof(Stack) == sizeof(Object));

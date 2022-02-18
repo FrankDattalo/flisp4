@@ -13,9 +13,6 @@ public:
 
     ~Character() = default;
 
-    NOT_MOVEABLE(Character);
-    COPYABLE(Character);
-
     char Value() const {
         return GetCharacter();
     }

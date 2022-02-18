@@ -12,9 +12,6 @@ public:
     }
 
     ~Nil() = default;
-
-    NOT_MOVEABLE(Nil);
-    COPYABLE(Nil);
 };
 
 #endif // REAL_HH__

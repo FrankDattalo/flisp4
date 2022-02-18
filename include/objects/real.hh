@@ -13,9 +13,6 @@ public:
 
     ~Real() = default;
 
-    NOT_MOVEABLE(Real);
-    COPYABLE(Real);
-
     float Value() const {
         return GetReal();
     }

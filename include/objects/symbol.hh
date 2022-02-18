@@ -13,10 +13,6 @@ public:
 
     ~Symbol() = default;
 
-    COPYABLE(Symbol);
-
-    NOT_MOVEABLE(Symbol);
-
     std::uint64_t Value() const {
         return GetSymbol();
     }

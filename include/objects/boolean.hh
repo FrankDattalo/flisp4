@@ -13,9 +13,6 @@ public:
 
     ~Boolean() = default;
 
-    NOT_MOVEABLE(Boolean);
-    COPYABLE(Boolean);
-
     bool Value() const {
         return GetBoolean();
     }

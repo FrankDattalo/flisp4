@@ -13,9 +13,6 @@ public:
 
     ~NativeReference() = default;
 
-    NOT_MOVEABLE(NativeReference);
-    COPYABLE(NativeReference);
-
     void* Value() const {
         return GetNativeReference();
     }

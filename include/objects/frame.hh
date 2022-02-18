@@ -31,6 +31,12 @@ public:
         return v->GetItem(pc);
     }
 
+    void AdvanceProgramCounter() {
+        Integer pc = *ConstProgramCounter().AsConstInteger();
+        pc = Integer(pc.Value() + 1);
+        ProgramCounter() = pc;
+    }
+
 private:
     const Vector* ConstBytecodeVector() const {
         return ConstBytecode().AsConstReference()->Value()->AsConstVector();

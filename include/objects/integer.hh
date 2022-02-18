@@ -12,9 +12,6 @@ public:
 
     ~Integer() = default;
 
-    NOT_MOVEABLE(Integer);
-    COPYABLE(Integer);
-
     std::int64_t Value() const {
         return GetInteger();
     }

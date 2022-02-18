@@ -8,6 +8,7 @@
 static_assert(sizeof(std::int64_t) == 2 * sizeof(std::uint32_t));
 
 class Object;
+class Handle;
 
 #define PER_PRIMITIVE_TYPE(V) \
     V(Nil) \
@@ -97,6 +98,8 @@ public:
 
     Primitive(const Integer& val) { this->operator=(val); }
     Primitive& operator=(const Integer& val);
+
+    Primitive& operator=(const Handle& val);
 
     #define DEFINE_CASTERS(V) \
         const V* AsConst##V() const { return reinterpret_cast<const V*>(this); } \

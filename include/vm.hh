@@ -63,47 +63,95 @@ private:
     }
 
     Handle on_load(Handle frame, Handle bc) {
+        advanceProgramCounter(frame);
+        Handle lookup_result = lookup(frame, *getFirstArg(bc).AsSymbol());
+        pushTemp(frame, lookup_result);
         return frame;
     }
 
     Handle on_define(Handle frame, Handle bc) {
+        advanceProgramCounter(frame);
+        Handle to_define = popTemp(frame);
+        define(frame, *getFirstArg(bc).AsSymbol(), to_define);
+        pushTemp(frame, heap.GetHandle(Nil()));
         return frame;
     }
 
     Handle on_set(Handle frame, Handle bc) {
+        advanceProgramCounter(frame);
+        throw std::runtime_error{"TODO"};
         return frame;
     }
 
     Handle on_invoke(Handle frame, Handle bc) {
+        throw std::runtime_error{"TODO"};
         return frame;
     }
 
     Handle on_invoketail(Handle frame, Handle bc) {
+        throw std::runtime_error{"TODO"};
         return frame;
     }
 
     Handle on_lambda(Handle frame, Handle bc) {
+        throw std::runtime_error{"TODO"};
         return frame;
     }
 
     Handle on_literal(Handle frame, Handle bc) {
+        advanceProgramCounter(frame);
+        pushTemp(frame, getFirstArg(bc));
         return frame;
     }
 
     Handle on_pop(Handle frame, Handle bc) {
+        advanceProgramCounter(frame);
+        popTemp(frame);
         return frame;
     }
 
     Handle on_jumpiffalse(Handle frame, Handle bc) {
+        throw std::runtime_error{"TODO"};
         return frame;
     }
 
     Handle on_jump(Handle frame, Handle bc) {
+        throw std::runtime_error{"TODO"};
         return frame;
     }
 
     Handle on_return(Handle frame, Handle bc) {
+        throw std::runtime_error{"TODO"};
         return frame;
+    }
+
+    void define(Handle frame, Symbol symbol, Handle value) {
+        throw std::runtime_error{"TODO"};
+    }
+
+    Handle lookup(Handle frame, Symbol symbol) {
+        throw std::runtime_error{"TODO"};
+        return heap.GetHandle(Nil());
+    }
+
+    void advanceProgramCounter(Handle frame) {
+        frame.AsFrame()->AdvanceProgramCounter();
+    }
+
+    void pushTemp(Handle frame, Handle value) {
+        Handle temps = heap.GetHandle(frame.AsFrame()->Temps());
+        Stack::Push(&heap, temps, value);
+    }
+
+    Handle popTemp(Handle frame) {
+        Handle temps = heap.GetHandle(frame.AsFrame()->Temps());
+        return Stack::Pop(&heap, temps);
+    }
+
+    Handle getFirstArg(Handle bc) {
+        Pair* p = bc.AsPair();
+        p = p->Second().AsReference()->Value()->AsPair();
+        return heap.GetHandle(p->First());
     }
 
     bool keepGoing(Handle frame) const {
