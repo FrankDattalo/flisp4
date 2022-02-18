@@ -3,11 +3,11 @@
 
 #include "lib/std.hh"
 #include "primitive.hh"
+#include "reference.hh"
 #include "util/memory_semantic_macros.hh"
 
-namespace runtime {
-
 class Heap;
+class Handle;
 class SemiSpaceIterator;
 class SlotIterator;
 
@@ -20,14 +20,12 @@ class SlotIterator;
     V(Vector) \
     V(String) \
     V(Map) \
-    V(Envrionment) \
     V(Stack) \
+    V(Envrionment) \
     V(Frame) \
-    V(VirtualMachine) \
     V(NativeFunction) \
-    V(Function) \
-    V(Closure) \
-    V(SymbolTable)
+    V(Lambda) \
+    V(Continuation)
 
 #define FORWARD_DECLARE(v) class v;
 PER_CONCRETE_OBJECT_TYPE(FORWARD_DECLARE)
@@ -40,15 +38,15 @@ PER_CONCRETE_OBJECT_TYPE(FORWARD_DECLARE)
                 Pair - basic list pair
                 Map - key value lookup
                 Environment - representings the envrionment
-                Stack - stack data structure
                 Frame - invocation frame
                 NativeFunction - object that holds metadata and pointer to native function 
-                Function - holds static function data such as code and formals
-                Closure - closure of function including created envrionment
-                VirtualMachine - the entire virtual machine
+                Lambda - closure of function including created envrionment
+                Continuation - a continuation of a previous stack frame
             Vector - scheme vector created with a variable size of elements
         String - string
 */
+
+
 class Object {
 friend Heap;
 friend SemiSpaceIterator;
@@ -78,7 +76,7 @@ public:
 
     void Visit(Visitor& visitor) const {
         switch (GetType()) {
-            #define ADD_VISITOR(v) case Object::Type::v: { visitor.On##v(this); return; }
+            #define ADD_VISITOR(v) case Object::Type::v: { visitor.On##v(this->AsConst##v()); return; }
             PER_CONCRETE_OBJECT_TYPE(ADD_VISITOR)
             #undef ADD_VISITOR
             default: throw std::runtime_error{"Unaccounted object type in Object.Visit"};
@@ -88,7 +86,7 @@ public:
     class Visitor {
     public:
         virtual ~Visitor() = default;
-        #define ADD_VISITOR(v) virtual void On##v(const Object*) = 0;
+        #define ADD_VISITOR(v) virtual void On##v(const v*) = 0;
         PER_CONCRETE_OBJECT_TYPE(ADD_VISITOR)
         #undef ADD_VISITOR
     };
@@ -101,11 +99,6 @@ public:
         v* As##v() { \
             checkType(Object::Type::v); \
             return reinterpret_cast<v*>(this); \
-        } \
-        template<typename T> \
-        typename std::enable_if<std::is_same<v, T>::value, v*>::type \
-        As() { \
-            return As##v(); \
         }
     PER_CONCRETE_OBJECT_TYPE(ADD_CONVERTER)
     #undef ADD_CONVERTER
@@ -146,7 +139,7 @@ private:
         }
         Primitive* head = reinterpret_cast<Primitive*>(this);
         this->type = Object::Type::GcForward;
-        head[1].SetReference(addr);
+        head[1] = Reference(addr);
     }
 
     Object* GetGcForwardAddress() const {
@@ -154,7 +147,7 @@ private:
             throw std::runtime_error{"Not a gc forward object"};
         }
         Primitive* head = reinterpret_cast<Primitive*>(const_cast<Object*>(this));
-        return head[1].GetReference();
+        return head[1].AsConstReference()->Value();
     }
 
     SlotIterator Slots();
@@ -163,7 +156,5 @@ private:
 static_assert(sizeof(Object) == sizeof(std::int64_t));
 static_assert(sizeof(Object) == sizeof(Primitive));
 static_assert(sizeof(Object) % 8 == 0);
-
-}
 
 #endif // OBJECT_HH__

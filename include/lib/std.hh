@@ -14,5 +14,6 @@
 #include <array>
 #include <initializer_list>
 #include <type_traits>
+#include <mutex>
 
 #endif // LIB_STD_HH__

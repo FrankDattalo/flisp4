@@ -3,21 +3,17 @@
 
 #include "lib/std.hh"
 
+#include "continuation.hh"
 #include "env.hh"
 #include "frame.hh"
+#include "lambda.hh"
 #include "map.hh"
+#include "native_function.hh"
 #include "object.hh"
 #include "pair.hh"
-#include "stack.hh"
 #include "string.hh"
+#include "stack.hh"
 #include "vector.hh"
-#include "vm.hh"
-#include "nativefn.hh"
-#include "function.hh"
-#include "closure.hh"
-#include "symboltable.hh"
-
-namespace runtime {
 
 class SlotIterator {
 private:
@@ -39,8 +35,8 @@ public:
             : iter{_iter}
             {}
 
-            #define ADD_CASE(v) void On##v(const Object* o) override { \
-                result = o->AsConst##v()->HasNext(iter->next_index); \
+            #define ADD_CASE(v) void On##v(const v* o) override { \
+                result = o->HasNext(iter->next_index); \
             }
             PER_CONCRETE_OBJECT_TYPE(ADD_CASE)
             #undef ADD_CASE
@@ -61,8 +57,8 @@ public:
             : iter{_iter}
             {}
 
-            #define ADD_CASE(v) void On##v(const Object*) override { \
-                result = iter->obj->As##v()->Next(iter->next_index); \
+            #define ADD_CASE(v) void On##v(const v* o) override { \
+                result = o->Next(iter->next_index); \
             }
             PER_CONCRETE_OBJECT_TYPE(ADD_CASE)
             #undef ADD_CASE
@@ -76,7 +72,5 @@ public:
         return visitor.result;
     }
 };
-
-} // namespace runtime
 
 #endif // SLOT_ITER_HH__

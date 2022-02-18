@@ -1,52 +1,44 @@
 // #include "cmd/entry.hh"
-#include "objects/primitive.hh"
-#include "heap.hh"
+#include "vm.hh"
 
 #include <iostream>
 #include <string>
 
-using namespace runtime;
-
 void print(Primitive p) {
     struct ObjVisitor : Object::Visitor {
-        void OnPair(const Object* obj) override {
-            const Pair* p = obj->AsConstPair();
+        void OnPair(const Pair * p) override {
             std::cout << "pair ("; 
-            print(Pair::GetFirst(p));
+            print(p->ConstFirst());
             std::cout << " . ";
-            print(Pair::GetSecond(p));
+            print(p->ConstSecond());
             std::cout << ")";
         }
-        void OnVector(const Object* obj) override {
+        void OnVector(const Vector* casted) override {
             std::cout << "[";
-            const Vector* casted = obj->AsConstVector();
-            std::size_t n = casted->GetLength().GetInteger();
+            std::size_t n = casted->Length().Value();
             for (std::size_t i = 0; i < n; i++) {
                 if (i != 0) {
                     std::cout << ", ";
                 }
-                print(casted->GetItem(i));
+                print(casted->GetItem(Integer(i)));
             }
             std::cout << "]";
         }
-        void OnString(const Object* obj) override {
+        void OnString(const String* casted) override {
             std::cout << "\"";
-            const String* casted = obj->AsConstString();
-            std::size_t n = String::GetLength(casted);
+            std::size_t n = casted->Length().Value();
             for (std::size_t i = 0; i < n; i++) {
-                std::cout << String::GetChar(casted, i);
+                std::cout << casted->GetChar(Integer(i)).Value();
             }
             std::cout << "\"";
         }
-        void OnMap(const Object* obj) override { std::cout << "todo"; }
-        void OnEnvrionment(const Object* obj) override { std::cout << "todo"; }
-        void OnStack(const Object* obj) override { std::cout << "todo"; }
-        void OnFrame(const Object* obj) override { std::cout << "todo"; }
-        void OnVirtualMachine(const Object* obj) override { std::cout << "todo"; }
-        void OnNativeFunction(const Object* obj) override { std::cout << "todo"; }
-        void OnFunction(const Object* obj) override { std::cout << "todo"; }
-        void OnClosure(const Object* obj) override { std::cout << "todo"; }
-        void OnSymbolTable(const Object* obj) override { std::cout << "todo"; }
+        void OnMap(const Map* obj) override { std::cout << "todo"; }
+        void OnEnvrionment(const Envrionment* obj) override { std::cout << "todo"; }
+        void OnStack(const Stack* obj) override { std::cout << "todo"; }
+        void OnFrame(const Frame* obj) override { std::cout << "todo"; }
+        void OnNativeFunction(const NativeFunction* obj) override { std::cout << "todo"; }
+        void OnLambda(const Lambda* obj) override { std::cout << "todo"; }
+        void OnContinuation(const Continuation* obj) override { std::cout << "todo"; }
     } obj_visitor;
 
     struct PrimVisitor : Primitive::Visitor {
@@ -54,30 +46,30 @@ void print(Primitive p) {
 
         PrimVisitor(ObjVisitor& _obj_visitor): obj_visitor{_obj_visitor} {}
 
-        void OnNil(const Primitive* obj) override {
+        void OnNil(const Nil* obj) override {
             std::cout << "nil";
         }
-        void OnInteger(const Primitive* obj) override {
-            std::cout << "integer " << obj->GetInteger();
+        void OnInteger(const Integer* obj) override {
+            std::cout << "integer " << obj->Value();
         }
-        void OnReal(const Primitive* obj) override {
-            std::cout << "real " << obj->GetReal();
+        void OnReal(const Real* obj) override {
+            std::cout << "real " << obj->Value();
         }
-        void OnSymbol(const Primitive* obj) override {
-            std::cout << "symbol " << obj->GetSymbol();
+        void OnSymbol(const Symbol* obj) override {
+            std::cout << "symbol " << obj->Value();
         }
-        void OnReference(const Primitive* obj) override {
-            Object* ref = obj->GetReference();
+        void OnReference(const Reference* obj) override {
+            Object* ref = obj->Value();
             ref->Visit(obj_visitor);
         }
-        void OnBoolean(const Primitive* obj) override {
-            std::cout << "boolean " << (obj->GetBoolean() ? "true" : "false");
+        void OnBoolean(const Boolean* obj) override {
+            std::cout << "boolean " << (obj->Value() ? "true" : "false");
         }
-        void OnCharacter(const Primitive* obj) override {
-            std::cout << "char " << obj->GetCharacter();
+        void OnCharacter(const Character* obj) override {
+            std::cout << "char " << obj->Value();
         }
-        void OnNativeReference(const Primitive* obj) override {
-            std::cout << "native " << obj->GetNativeReference();
+        void OnNativeReference(const NativeReference* obj) override {
+            std::cout << "native " << obj->Value();
         }
     } visitor(obj_visitor);
 
@@ -153,9 +145,9 @@ int main(int argc, char** argv) {
     //     std::getline(std::cin, line);
     // }
 
-    Heap heap3{1000};
+    // Heap heap3{1000};
 
-    VirtualMachine::Execute(heap3.NewVirtualMachine());
+    VirtualMachine vm;
 
     return 0;
 }

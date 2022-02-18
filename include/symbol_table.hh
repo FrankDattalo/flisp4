@@ -1,13 +1,9 @@
 #ifndef SYMBOL_TABLE_H__
 #define SYMBOL_TABLE_H__
 
-#include <cstdint>
-#include <map>
-#include <mutex>
-
+#include "lib.hh"
+#include "objects/symbol.hh"
 #include "util/memory_semantic_macros.hh"
-
-namespace runtime {
 
 class SymbolTable {
 private:
@@ -23,7 +19,7 @@ public:
 
     NOT_MOVEABLE(SymbolTable);
 
-    std::uint64_t Intern(const std::string & value) {
+    Symbol Intern(const std::string & value) {
 
         std::scoped_lock lock{mutex};
 
@@ -38,25 +34,23 @@ public:
         this->symbols_to_id[value] = result;
         this->id_to_symbols[result] = value;
 
-        return result;
+        return Symbol(result);
     }
 
-    std::string ToString(std::uint64_t symbol_id) {
+    const std::string ToString(Symbol symbol_id) {
 
         std::scoped_lock lock{mutex};
 
-        auto iter = this->id_to_symbols.find(symbol_id);
+        auto iter = this->id_to_symbols.find(symbol_id.Value());
 
         if (iter == this->id_to_symbols.end()) {
             std::string error_message{"No symbol definition found for "};
-            error_message.append(std::to_string(symbol_id));
+            error_message.append(std::to_string(symbol_id.Value()));
             throw std::runtime_error{error_message};
         }
 
         return iter->second;
     }
 };
-
-}
 
 #endif // SYMBOL_TABLE_H__

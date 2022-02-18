@@ -5,25 +5,27 @@
 #include "util/debug.hh"
 #include "util/memory_semantic_macros.hh"
 
-namespace runtime {
-
 static_assert(sizeof(std::int64_t) == 2 * sizeof(std::uint32_t));
-static_assert(std::numeric_limits<std::int64_t>::max() >= std::numeric_limits<std::uint32_t>::max());
 
 class Object;
 
+#define PER_PRIMITIVE_TYPE(V) \
+    V(Nil) \
+    V(Reference) \
+    V(Integer) \
+    V(Symbol) \
+    V(Boolean) \
+    V(Real) \
+    V(Character) \
+    V(NativeReference)
+
+#define FORWARD_DECLARE(V) class V;
+PER_PRIMITIVE_TYPE(FORWARD_DECLARE)
+#undef FORWARD_DECLARE
+
+
 class Primitive {
 public:
-    #define PER_PRIMITIVE_TYPE(V) \
-        V(Nil) \
-        V(Reference) \
-        V(Integer) \
-        V(Symbol) \
-        V(Boolean) \
-        V(Real) \
-        V(Character) \
-        V(NativeReference)
-
     enum class Type {
         #define COMMA(v) v,
         PER_PRIMITIVE_TYPE(COMMA)
@@ -36,6 +38,9 @@ private:
     constexpr static std::int64_t MAX_INT = std::numeric_limits<std::int64_t>::max() >> TYPE_TAG_SIZE;
     constexpr static std::int64_t MIN_INT = std::numeric_limits<std::int64_t>::min() >> TYPE_TAG_SIZE;
     constexpr static std::int64_t MAX_SYMBOL = std::numeric_limits<std::uint64_t>::max() >> TYPE_TAG_SIZE;
+
+    // ensure that we can always address any allocation
+    static_assert(MAX_INT >= std::numeric_limits<std::uint32_t>::max());
 
     constexpr static std::uint64_t REFERENCE_TAG = 0b000;
     constexpr static std::uint64_t INTEGER_TAG   = 0b001;
@@ -65,15 +70,41 @@ private:
     */
 public:
     Primitive() {
-        // initialize to nil
         SetNil();
     }
 
-    MOVEABLE(Primitive);
     COPYABLE(Primitive);
+
+    // not moveable, instead also copies
+    Primitive(Primitive&& other) {
+        *this = other;
+    }
+
+    Primitive& operator=(Primitive&& other) {
+        *this = other;
+        return *this;
+    }
 
     ~Primitive() = default;
 
+    Primitive& operator=(const Nil&) {
+        this->SetNil();
+        return *this;
+    }
+
+    Primitive(const Reference& ref) { this->operator=(ref); }
+    Primitive& operator=(const Reference& ref);
+
+    Primitive(const Integer& val) { this->operator=(val); }
+    Primitive& operator=(const Integer& val);
+
+    #define DEFINE_CASTERS(V) \
+        const V* AsConst##V() const { return reinterpret_cast<const V*>(this); } \
+        V* As##V() { return reinterpret_cast<V*>(this); }
+    PER_PRIMITIVE_TYPE(DEFINE_CASTERS)
+    #undef DEFINE_CASTERS
+
+    /*
     bool ShallowEquals(const Primitive* other) {
         if (other->GetType() != this->GetType()) {
             return false;
@@ -102,44 +133,9 @@ public:
         Visit(visitor);
 
         return visitor.result;
-    }
+    }*/
 
-    static Primitive Symbol(std::uint64_t value) {
-        Primitive ret;
-        ret.SetSymbol(value);
-        return ret;
-    }
-
-    static Primitive Integer(std::int64_t value) {
-        Primitive ret;
-        ret.SetInteger(value);
-        return ret;
-    }
-
-    static Primitive Nil() {
-        Primitive ret;
-        ret.SetNil();
-        return ret;
-    }
-
-    static Primitive Character(char c) {
-        Primitive ret;
-        ret.SetCharacter(c);
-        return ret;
-    }
-
-    static Primitive Reference(Object* val) {
-        Primitive ret;
-        ret.SetReference(val);
-        return ret;
-    }
-
-    static Primitive NativeReference(void* val) {
-        Primitive ret;
-        ret.SetNativeReference(val);
-        return ret;
-    }
-
+protected:
     void SetInteger(std::int64_t value) {
         checkSize(value);
         std::uint64_t data = *reinterpret_cast<std::uint64_t*>(&value);
@@ -217,6 +213,7 @@ public:
         return getNativePointerData(data(this->_data));
     }
 
+public:
     Primitive::Type GetType() const {
         return getType();
     }
@@ -234,7 +231,7 @@ public:
 
     void Visit(Visitor& visitor) const {
         switch (GetType()) {
-            #define ADD_CASE(v) case Primitive::Type::v: { visitor.On##v(this); return; }
+            #define ADD_CASE(v) case Primitive::Type::v: { visitor.On##v(this->AsConst##v()); return; }
             PER_PRIMITIVE_TYPE(ADD_CASE)
             #undef ADD_CASE
             default: throw std::runtime_error{"This should never happen in Visit"};
@@ -244,7 +241,7 @@ public:
     class Visitor {
     public:
         virtual ~Visitor() = default;
-        #define ADD_CASE(v) virtual void On##v(const Primitive* obj) = 0;
+        #define ADD_CASE(v) virtual void On##v(const v* obj) = 0;
         PER_PRIMITIVE_TYPE(ADD_CASE)
         #undef ADD_CASE
     };
@@ -348,6 +345,5 @@ private:
 
 static_assert(sizeof(Primitive) == sizeof(std::int64_t));
 
-}
 
 #endif // PRIMITIVE_HH__

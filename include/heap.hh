@@ -5,8 +5,6 @@
 #include "util.hh"
 #include "objects.hh"
 
-namespace runtime {
-
 class SemiSpaceIterator;
 
 class SemiSpace {
@@ -104,72 +102,6 @@ public:
     }
 };
 
-class Heap;
-class RootManager;
-
-class UntypedHandle {
-protected:
-    Primitive location;
-    RootManager* manager;
-public:
-    UntypedHandle(RootManager* _manager, Primitive _data);
-
-    virtual ~UntypedHandle();
-
-    NOT_MOVEABLE(UntypedHandle);
-
-    UntypedHandle(const UntypedHandle& other)
-    : UntypedHandle(other.manager, other.location)
-    {}
-
-    UntypedHandle& operator=(const UntypedHandle& other) = delete;
-
-    const Primitive & GetData() const { return location; }
-};
-
-class PrimitiveHandle : public UntypedHandle {
-public:
-    PrimitiveHandle(RootManager* _manager, Primitive _data)
-    : UntypedHandle(_manager, _data)
-    {}
-
-    NOT_MOVEABLE(PrimitiveHandle);
-
-    PrimitiveHandle(const PrimitiveHandle& other) 
-    : UntypedHandle(other)
-    {}
-
-    virtual ~PrimitiveHandle() = default;
-
-    Primitive* operator->() {
-        return &location;
-    }
-};
-
-template<typename T>
-class ReferenceHandle : public UntypedHandle {
-public:
-    ReferenceHandle(RootManager* _manager, T* _data)
-    : UntypedHandle(_manager, Primitive::Reference(_data))
-    {}
-
-    virtual ~ReferenceHandle() = default;
-
-    NOT_MOVEABLE(ReferenceHandle);
-
-    ReferenceHandle(const ReferenceHandle& other) 
-    : UntypedHandle(other)
-    {}
-
-    T* operator->() {
-        return GetPointer();
-    }
-
-    T* GetPointer() {
-        return location.GetReference()->As<T>();
-    }
-};
-
 class RootManager {
 private:
     std::set<Primitive*> roots;
@@ -180,30 +112,73 @@ public:
     NOT_COPYABLE(RootManager);
     NOT_MOVEABLE(RootManager);
 
-    template<typename T>
-    ReferenceHandle<T> Get(T* ref) {
-        ReferenceHandle<T> ret{this, ref};
-        return ret;
+    void AddRoot(Primitive* data) {
+        roots.insert(data);
     }
 
-    PrimitiveHandle Get(Primitive val) {
-        PrimitiveHandle ret{this, val};
-        return ret;
-    }
-
-    void AddRoot(Primitive* root) {
-        DEBUGLN("Adding root at " << root);
-        roots.insert(root);
-    }
-
-    void RemoveRoot(Primitive* root) {
-        DEBUGLN("Removing root at " << root);
-        roots.erase(root);
+    void RemoveRoot(Primitive* data) {
+        roots.erase(data);
     }
 
     const std::set<Primitive*>& GetRoots() const {
         return roots;
     }
+};
+
+class HandleBlock {
+    RootManager* manager;
+    Primitive data;
+public:
+    HandleBlock(RootManager* _manager, Primitive _data) {
+        this->manager = _manager;
+        this->data = _data;
+        this->manager->AddRoot(&this->data);
+    }
+
+    ~HandleBlock() {
+        this->manager->RemoveRoot(&this->data);
+    }
+
+    NOT_COPYABLE(HandleBlock);
+    NOT_MOVEABLE(HandleBlock);
+
+    Primitive Data() const {
+        return data;
+    }
+
+    Primitive* DataPtr() {
+        return &data;
+    }
+};
+
+class Handle {
+    std::shared_ptr<HandleBlock> block;
+
+public:
+    Handle(std::shared_ptr<HandleBlock> _block)
+    : block{_block}
+    {}
+
+    Handle() 
+    : block{nullptr}
+    {}
+
+    ~Handle() = default;
+
+    COPYABLE(Handle);
+
+    MOVEABLE(Handle);
+
+    void AssignTo(Primitive& location) const {
+        location = block->Data();
+    }
+
+    #define DEFINE_CASTERS(V) \
+        V* As##V() { \
+            return block->DataPtr()->AsReference()->Value()->As##V(); \
+        }
+    PER_CONCRETE_OBJECT_TYPE(DEFINE_CASTERS)
+    #undef DEFINE_CASTERS
 };
 
 class Heap {
@@ -226,67 +201,59 @@ public:
 
     NOT_MOVEABLE(Heap);
 
-    template<typename T>
-    ReferenceHandle<T> GetHandle(T* ptr) {
-        return roots.Get(ptr);
+    Handle GetHandle(Primitive val) {
+        std::shared_ptr<HandleBlock> hb = std::make_shared<HandleBlock>(&roots, val);
+        Handle ret{hb};
+        return ret;
     }
 
-    PrimitiveHandle GetHandle(Primitive val) {
-        return roots.Get(val);
-    }
-
-    template<typename T, typename... Primitives>
-    T* StructureAllocator(const Primitives&... args) {
+    template<typename T, typename... Handles>
+    Handle StructureAllocator(Handles... args) {
         void* addr = Allocate(T::AllocationSize());
-        T* ret = new (addr) T(args...);
+        T* ptr = new (addr) T(args...);
+        std::shared_ptr<HandleBlock> hb = std::make_shared<HandleBlock>(&roots, Reference(ptr));
+        Handle ret{hb};
         return ret;
     }
 
-    Vector* NewVector(std::size_t items) {
+    Handle NewVector(std::size_t items) {
         void* addr = Allocate(Vector::AllocationSize(items));
-        Vector* ret = new (addr) Vector(items);
+        Vector* ptr = new (addr) Vector(items);
+        std::shared_ptr<HandleBlock> hb = std::make_shared<HandleBlock>(&roots, Reference(ptr));
+        Handle ret{hb};
         return ret;
     }
 
-    String* NewString(const std::string& str) {
+    Handle NewString(const std::string& str) {
         void* addr = Allocate(String::AllocationSize(str));
-        String* ret = new (addr) String(str);
+        String* ptr = new (addr) String(str);
+        std::shared_ptr<HandleBlock> hb = std::make_shared<HandleBlock>(&roots, Reference(ptr));
+        Handle ret{hb};
         return ret;
     }
 
-    Pair* NewPair(const Primitive & first, const Primitive & second) {
+    Handle NewPair(Handle first, Handle second) {
         return StructureAllocator<Pair>(first, second);
     }
 
-    Map* NewMap() {
+    Handle NewMap() {
         return StructureAllocator<Map>();
     }
 
-    Envrionment* NewEnvironment(const Primitive & outer, const Primitive & lookup) {
+    Handle NewEnvironment(Handle outer, Handle lookup) {
         return StructureAllocator<Envrionment>(outer, lookup);
     }
 
-    Stack* NewStack() {
+    Handle NewStack() {
         return StructureAllocator<Stack>();
     }
 
-    Frame* NewFrame(const Primitive & env, const Primitive & outer, const Primitive & stack) {
-        return StructureAllocator<Frame>(env, outer, stack);
+    Handle NewFrame(Handle bytecode, Handle outer, Handle temps, Handle env) {
+        return StructureAllocator<Frame>(bytecode, outer, temps, env);
     }
 
-    VirtualMachine* NewVirtualMachine() {
-        return StructureAllocator<VirtualMachine>(Primitive::NativeReference(this));
-    }
-
-    NativeFunction* NewNativeFunction(NativeFunctionPointer ptr, std::int64_t arity) {
-        return StructureAllocator<NativeFunction>(
-            Primitive::NativeReference(reinterpret_cast<void*>(ptr)),
-            Primitive::Integer(arity)
-        );
-    }
-
-    SymbolTable* NewSymbolTable(const Primitive & map1, const Primitive & map2) {
-        return StructureAllocator<SymbolTable>(map1, map2);
+    Handle NewNativeFunction(Handle ptr, Handle arity) {
+        return StructureAllocator<NativeFunction>(ptr, arity);
     }
 
 private:
@@ -338,14 +305,14 @@ private:
 
             virtual ~Visitor() = default;
 
-            void OnNil(const Primitive*) override {/* intentionally empty */}
-            void OnInteger(const Primitive*) override {/* intentionally empty */}
-            void OnSymbol(const Primitive*) override {/* intentionally empty */}
-            void OnReal(const Primitive*) override {/* intentionally empty */}
-            void OnBoolean(const Primitive*) override {/* intentionally empty */}
-            void OnNativeReference(const Primitive*) override {/* intentionally empty */}
-            void OnCharacter(const Primitive*) override {/* intentionally empty */}
-            void OnReference(const Primitive*) override {
+            void OnNil(const Nil*) override {/* intentionally empty */}
+            void OnInteger(const Integer*) override {/* intentionally empty */}
+            void OnSymbol(const Symbol*) override {/* intentionally empty */}
+            void OnReal(const Real*) override {/* intentionally empty */}
+            void OnBoolean(const Boolean*) override {/* intentionally empty */}
+            void OnNativeReference(const NativeReference*) override {/* intentionally empty */}
+            void OnCharacter(const Character*) override {/* intentionally empty */}
+            void OnReference(const Reference* ref) override {
                 DEBUGLN("Reference object detected, moving to new space");
                 heap->transferReference(location);
             }
@@ -355,13 +322,13 @@ private:
     }
 
     void transferReference(Primitive* location) {
-        Object* ref = location->GetReference();
+        Object* ref = location->AsReference()->Value();
 
         // if it's already been moved, just update the location with the
         // new pointer
         if (ref->IsGcForward()) {
             DEBUGLN("Gc forward detected, " << ref << " was already moved moved to " << ref->GetGcForwardAddress());
-            location->SetReference(ref->GetGcForwardAddress());
+            *location = Reference(ref->GetGcForwardAddress());
             return;
         }
 
@@ -376,7 +343,7 @@ private:
         DEBUGLN("Copied over contents");
         ref->SetGcForwardAddress(new_addr_casted);
         DEBUGLN("Old address " << ref << " now forwarding to " << new_addr_casted);
-        location->SetReference(new_addr_casted);
+        *location = Reference(new_addr_casted);
         DEBUGLN(location << " updated to point to " << new_addr_casted);
     }
 
@@ -404,7 +371,5 @@ private:
     }
 
 };
-
-} // namespace runtime
 
 #endif // HEAP_H__

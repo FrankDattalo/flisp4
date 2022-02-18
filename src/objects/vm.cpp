@@ -1,8 +1,6 @@
-#include "objects/vm.hh"
-#include "heap.hh"
+#include "vm.hh"
 
-namespace runtime {
-
+/*
 void VirtualMachine::Execute(VirtualMachine* self_) {
     ReferenceHandle<VirtualMachine> self = self_->heap()->GetHandle(self_);
     DEBUGLN("Heap root at " << &self.GetData());
@@ -50,6 +48,4 @@ Heap* VirtualMachine::heap() {
 
 SymbolTable* VirtualMachine::sym() {
     return symbol_table_slot().GetReference()->AsSymbolTable();
-}
-
-} // namespace runtime
+}*/

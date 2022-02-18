@@ -1,18 +1,5 @@
 #include "heap.hh"
 
-namespace runtime {
-
-UntypedHandle::UntypedHandle(RootManager* _manager, Primitive _location)
-{
-    this->manager = _manager;
-    this->location = _location;
-    this->manager->AddRoot(&location);
-}
-
-UntypedHandle::~UntypedHandle() {
-    this->manager->RemoveRoot(&location);
-}
-
 SemiSpaceIterator SemiSpace::Iterator() {
     return SemiSpaceIterator{this};
 }
@@ -28,5 +15,3 @@ void Heap::transfer() {
         }
     }
 }
-
-} // namespace runtime

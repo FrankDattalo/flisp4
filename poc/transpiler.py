@@ -1,6 +1,18 @@
 import pprint
 import uuid
 
+# 0  LOAD
+# 1  POP
+# 2  LITERAL
+# 3  DEFINE
+# 4  SET
+# 5  RETURN
+# 6  LAMBDA
+# 7  JUMP
+# 8  JUMPIFFALSE
+# 9  INVOKE
+# 10 INVOKETAIL
+
 class Symbol:
     def __init__(self, value):
         self.value = value

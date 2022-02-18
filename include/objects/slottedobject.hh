@@ -4,8 +4,7 @@
 #include "lib/std.hh"
 #include "primitive.hh"
 #include "object.hh"
-
-namespace runtime {
+#include "nil.hh"
 
 class SlottedObject : public Object {
 protected:
@@ -25,7 +24,7 @@ public:
     {
         std::size_t N = SlotCount();
         for (std::size_t i = 0; i < N; i++) {
-            SlotRef(i).SetNil();
+            SlotRef(i) = Nil();
         }
     }
 
@@ -46,7 +45,5 @@ private:
 };
 
 static_assert(sizeof(SlottedObject) == sizeof(Object));
-
-} // namespace runtime
 
 #endif // SLOTTED_OBJECT_HH__

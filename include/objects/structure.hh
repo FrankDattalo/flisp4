@@ -4,8 +4,6 @@
 #include "lib/std.hh"
 #include "slottedobject.hh"
 
-namespace runtime {
-
 template<Object::Type TYPE, std::size_t N>
 class Structure : public SlottedObject {
 public:
@@ -29,8 +27,6 @@ public:
 #define FIELD(number, name) \
     static_assert(number < NumberOfSlots()); \
     Primitive& name() { return SlotRef(number); } \
-    const Primitive& const_##name() const { return *SlotPtr(number); }
-
-} // namespace runtime
+    const Primitive& Const##name() const { return *SlotPtr(number); }
 
 #endif // STRUCTURE_HH__

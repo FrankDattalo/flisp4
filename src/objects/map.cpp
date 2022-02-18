@@ -1,8 +1,7 @@
 #include "objects/map.hh"
 #include "heap.hh"
 
-namespace runtime {
-
+/*
 void Map::Insert(Map* self_, Heap* heap, Primitive key_, Primitive value_) {
 
     ReferenceHandle<Map> self = heap->GetHandle(self_);
@@ -32,5 +31,31 @@ void Map::Insert(Map* self_, Heap* heap, Primitive key_, Primitive value_) {
     self->size() = Primitive::Integer(self->size().GetInteger() + 1);
     self->head() = new_head.GetData();
 }
+// TODO make this RB tree
+static Primitive Lookup(const Map* self, Primitive key) {
+    Pair* kvpair = LookupNode(self, key);
+    if (kvpair != nullptr) {
+        return Pair::GetSecond(kvpair);
+    }
+    return Primitive::Nil();
+}
 
-} // namespace runtime
+static void Insert(Map* self, Heap* heap, Primitive key, Primitive value);
+
+static Primitive Size(const Map* self) { return self->const_size(); }
+
+private:
+static Pair* LookupNode(const Map* self, Primitive key) {
+    Primitive current = self->const_head();
+    while (current.GetType() != Primitive::Type::Nil) {
+        Pair* casted = current.GetReference()->AsPair();
+        Pair* kvpair = Pair::GetFirst(casted).GetReference()->AsPair();
+        current = Pair::GetSecond(casted);
+        // TODO: make this deep equals
+        if (Pair::GetFirst(kvpair).ShallowEquals(&key)) {
+            return kvpair;
+        }
+    }
+    return nullptr;
+}
+*/

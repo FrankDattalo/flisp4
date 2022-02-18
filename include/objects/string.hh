@@ -3,29 +3,30 @@
 
 #include "lib/std.hh"
 #include "object.hh"
-
-namespace runtime {
+#include "integer.hh"
+#include "character.hh"
 
 class String : public Object {
 public:
-    String(const std::string& str)
-    : Object(Object::Type::String, AllocationSize(str))
+    String(const std::string& str): Object(Object::Type::String, AllocationSize(str))
     {
-        *length() = Primitive::Integer(str.size());
+        *length() = Integer(str.size());
         char* dest = chars();
         for (std::size_t i = 0; i < str.size(); i++) {
             dest[i] = str.at(i);
         }
     }
 
-    static std::uint64_t GetLength(const String* self) { return self->length()->GetInteger(); }
+    Integer Length() const { 
+        return *this->length()->AsConstInteger(); 
+    }
 
-    static char GetChar(const String* self, std::uint32_t index) {
-        if (index >= String::GetLength(self)) {
+    Character GetChar(Integer index) const {
+        if (index.Value() >= Length().Value()) {
             throw std::runtime_error{"String index out of bounds"};
         }
-        char* c = self->chars();
-        return c[index];
+        char* c = chars();
+        return Character(c[index.Value()]);
     }
 
     constexpr static std::size_t MinAllocationSize() {
@@ -67,7 +68,5 @@ private:
 };
 
 static_assert(sizeof(String) == sizeof(Object));
-
-} // namespace runtime
 
 #endif // STRING_HH__

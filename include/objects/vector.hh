@@ -4,26 +4,20 @@
 #include "lib/std.hh"
 #include "slottedobject.hh"
 
-namespace runtime {
-
 class Vector : public SlottedObject {
 public:
-    Vector(std::size_t i) 
-    : SlottedObject(Object::Type::Vector, AllocationSize(i)) 
-    {
-        SlotRef(0) = Primitive::Integer(i);
-    }
+    Vector(std::size_t i);
 
     ~Vector() = default;
 
-    Primitive GetLength() const { return GetSlot(0); }
+    Integer Length() const { return *SlotPtr(0)->AsConstInteger(); }
 
-    Primitive GetItem(std::uint32_t index) const {
-        return GetSlot(index + 1);
+    Primitive GetItem(Integer index) const {
+        return GetSlot(index.Value() + 1);
     }
 
-    void SetItem(std::uint32_t index, Primitive val) {
-        SlotRef(index + 1) = val;
+    void SetItem(Integer index, Primitive val) {
+        SlotRef(index.Value() + 1) = val;
     }
 
     static std::size_t AllocationSize(std::size_t items) {
@@ -36,7 +30,5 @@ public:
 };
 
 static_assert(sizeof(Vector) == sizeof(Object));
-
-} // namespace runtime
 
 #endif // VECTOR_HH__

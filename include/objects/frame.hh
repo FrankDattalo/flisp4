@@ -2,22 +2,41 @@
 #define FRAME_HH__
 
 #include "structure.hh"
+#include "integer.hh"
+#include "vector.hh"
 
-namespace runtime {
-
-class Frame : public Structure<Object::Type::Frame, 3> {
-private:
-    FIELD(0, env);
-    FIELD(1, outer);
-    FIELD(2, stack);
+class Frame : public Structure<Object::Type::Frame, 5> {
 public:
-    Frame(Primitive _env, Primitive _outer, Primitive _stack) : Structure() {
-        env() = _env;
-        outer() = _outer;
-        stack() = _stack;
+    Frame(Handle _bytecode, Handle _outer, Handle _temps, Handle _env);
+
+    ~Frame() = default;
+
+    FIELD(0, Bytecode);
+
+    FIELD(1, Outer);
+
+    FIELD(2, Temps);
+
+    FIELD(3, Env);
+
+    FIELD(4, ProgramCounter);
+
+    Integer BytecodeLength() const {
+        return ConstBytecodeVector()->Length();
+    }
+
+    Primitive NextBytecode() const {
+        Integer pc = *ConstProgramCounter().AsConstInteger();
+        const Vector* v = ConstBytecodeVector();
+        return v->GetItem(pc);
+    }
+
+private:
+    const Vector* ConstBytecodeVector() const {
+        return ConstBytecode().AsConstReference()->Value()->AsConstVector();
     }
 };
 
-} // namespace runtime
+static_assert(sizeof(Frame) == sizeof(Object));
 
 #endif // FRAME_HH__
